@@ -1,0 +1,1 @@
+"""Predefined central bodies."""

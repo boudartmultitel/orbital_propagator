@@ -1,0 +1,37 @@
+services:
+  orbital_propagator:
+    build:
+      context: ./orbital_propagator
+    working_dir: /workspace
+    entrypoint:
+      - python
+      - -m
+      - orbital_propagator.cli
+    volumes:
+      - ./orbital_propagator:/workspace
+      - ./results:/shared/results
+    environment:
+      RESULTS_DIR: /shared/results
+      PYTHONPATH: /workspace/src
+    command:
+      - --output
+      - /shared/results/example_run.json
+
+  visualization_interface:
+    build:
+      context: ./visualization_interface
+    working_dir: /workspace
+    volumes:
+      - ./visualization_interface:/workspace
+      - ./orbital_propagator/src:/opt/orbital_propagator/src:ro
+      - ./results:/shared/results
+    environment:
+      RESULTS_DIR: /shared/results
+      DASH_HOST: 0.0.0.0
+      DASH_PORT: "8050"
+      PYTHONPATH: /workspace/app:/opt/orbital_propagator/src
+    ports:
+      - "8050:8050"
+    command:
+      - python
+      - app/app.py
