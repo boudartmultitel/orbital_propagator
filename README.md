@@ -98,3 +98,7 @@ The generated JSON artifact is also saved in [results](./results).
 - The app and the CLI read and write the same artifact format.
 - The `results/` folder is now part of the repository workspace, so you can inspect or delete JSON outputs directly.
 - If you use `pymsis`, the container must have the required dependency data available at runtime.
+
+## Interface Preview
+
+<img src="./utils/layout_interface.png" alt="Visualization interface layout" width="100%" />
