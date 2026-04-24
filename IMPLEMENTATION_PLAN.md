@@ -500,7 +500,7 @@ Recommendation:
 
 Deliverables:
 
-- custom SciPy propagator
+- custom SciPy propagator (check JAX diffrax -> accumulated error for non-conservative energy)
 - central gravity + J2
 - trajectory and acceleration outputs
 - tests against simple known cases
@@ -527,6 +527,8 @@ Deliverables:
 - comparison notebooks against `tudatpy`
 - force-by-force residual plots
 - regression tests for acceleration magnitudes and long-horizon behavior
+- consider using a symplectic method for conservative case only (two-body, J2) to avoid numerical errors to be learned by the KAN
+- verify the effect of numerical errors for non-conservative cases (drag, third-body, SRP)
 
 Exit criterion:
 
