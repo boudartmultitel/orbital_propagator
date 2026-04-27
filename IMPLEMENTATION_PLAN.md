@@ -500,7 +500,7 @@ Recommendation:
 
 Deliverables:
 
-- custom SciPy propagator (check JAX diffrax -> accumulated error for non-conservative energy)
+- custom SciPy propagator
 - central gravity + J2
 - trajectory and acceleration outputs
 - tests against simple known cases

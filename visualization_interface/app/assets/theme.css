@@ -52,30 +52,199 @@ body {
 
 .orbit-views {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
 
 .orbit-view-panel {
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 10px;
+  gap: 18px;
+  min-height: 740px;
+  overflow: hidden;
+  margin-bottom: 18px;
 }
 
-.orbit-view-toolbar {
-  display: flex;
-  align-items: end;
-  justify-content: flex-end;
-  gap: 12px;
+.orbit-panel-header {
   padding: 0 6px;
 }
 
+.orbit-panel-title {
+  margin: 0 0 6px;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.orbit-panel-subtitle {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.orbit-view-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.orbit-controls-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 30px;
+  padding: 10px 12px;
+  background: rgba(255, 250, 242, 0.88);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  box-shadow: 0 10px 26px rgba(67, 52, 37, 0.06);
+  /**height: 100%;*/
+}
+
+.orbit-toolbar-group {
+  min-width: 0;
+}
+
 .orbit-view-label {
-  margin-bottom: 0;
+  margin-bottom: 6px;
 }
 
 .orbit-view-input {
-  width: 180px;
+  width: 100%;
+}
+
+.orbit-view-dropdown {
+  width: 100%;
+  min-width: 0;
+}
+
+.orbit-view-checklist {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+}
+
+.orbit-button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.orbit-action-button {
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: #fffdf8;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.orbit-action-button-active {
+  background: linear-gradient(135deg, var(--accent), #175b79);
+  border-color: #175b79;
+  color: #f8fafc;
+}
+
+.orbit-readout-panel {
+  padding: 10px 12px;
+  background: rgba(15, 118, 110, 0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+}
+
+.orbit-readout-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.orbit-readout-item {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 8px;
+  align-items: baseline;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(214, 199, 180, 0.7);
+}
+
+.orbit-readout-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.orbit-readout-label {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.orbit-readout-value {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.orbit-readout-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.orbit-graph {
+  min-height: 680px;
+  margin-bottom: 10px;
+}
+
+.trajectory-time-slider-panel {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  width: 100%;
+  padding: 18px 36px 34px;
+}
+
+.trajectory-orbit-scale {
+  position: relative;
+  height: 22px;
+  margin-bottom: 2px;
+}
+
+.trajectory-orbit-scale-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.trajectory-orbit-scale-label:first-child {
+  transform: translateX(0);
+}
+
+.trajectory-orbit-scale-label:last-child {
+  transform: translateX(-100%);
+}
+
+.trajectory-time-slider {
+  width: 100%;
+  margin: 0;
+}
+
+.trajectory-time-slider .rc-slider-mark-text {
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .sidebar-section {
@@ -162,6 +331,12 @@ body {
   width: 100%;
 }
 
+.control-date-picker,
+.control-date-picker .DateInput,
+.control-date-picker .DateInput_input {
+  width: 100%;
+}
+
 .control-input input {
   width: 100%;
   padding: 10px 12px;
@@ -175,6 +350,16 @@ body {
 .force-checklist {
   display: grid;
   gap: 8px;
+}
+
+.helper-panel {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: rgba(15, 118, 110, 0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .summary-grid,
@@ -224,6 +409,12 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
+  margin-top: 10px;
+}
+
+#acceleration-graph,
+#force-components-graph {
+  margin-bottom: 12px;
 }
 
 @media (max-width: 900px) {
@@ -239,6 +430,10 @@ body {
   .control-grid,
   .orbit-views,
   .diagnostics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .orbit-view-layout {
     grid-template-columns: 1fr;
   }
 }
