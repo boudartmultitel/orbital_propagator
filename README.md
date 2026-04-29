@@ -101,4 +101,4 @@ The generated JSON artifact is also saved in [results](./results).
 
 ## Interface Preview
 
-<img src="./utils/layout_interface_v2.png" alt="Visualization interface layout" width="100%" />
+<img src="./utils/layout_interface_v3.png" alt="Visualization interface layout" width="100%" />
