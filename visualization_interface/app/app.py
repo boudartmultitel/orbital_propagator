@@ -442,6 +442,158 @@ def earth_equator_trace(
     )
 
 
+def reference_direction_traces(
+    *,
+    reference_vectors_m: dict[str, list[float]] | None,
+    reference_vector_tracks_m: dict[str, dict[str, list[list[float]] | list[float]]] | None,
+    orbit_scale_km: float,
+) -> list[Any]:
+    if orbit_scale_km <= 0.0:
+        return []
+
+    traces: list[Any] = []
+    body_colors = {"sun": "#f59e0b", "moon": "#2563eb"}
+    direction_radius_km = orbit_scale_km * 1.2
+    arrow_length_km = max(orbit_scale_km * 0.12, 1.0)
+
+    track_payload = reference_vector_tracks_m or {}
+    initial_vectors = reference_vectors_m or {}
+
+    for body_name in sorted(set(track_payload) | set(initial_vectors)):
+        color = body_colors.get(body_name, "#6b7280")
+        track = track_payload.get(body_name)
+
+        arc_points_km: list[list[float]] = []
+        if track and track.get("vectors_m"):
+            for vector in track["vectors_m"]:
+                norm = math.sqrt(sum(component * component for component in vector))
+                if norm == 0.0:
+                    continue
+                arc_points_km.append(
+                    [component / norm * direction_radius_km for component in vector]
+                )
+        elif body_name in initial_vectors:
+            vector = initial_vectors[body_name]
+            norm = math.sqrt(sum(component * component for component in vector))
+            if norm > 0.0:
+                arc_points_km.append(
+                    [component / norm * direction_radius_km for component in vector]
+                )
+
+        if not arc_points_km:
+            continue
+
+        if len(arc_points_km) >= 2:
+            x_arc = [point[0] for point in arc_points_km]
+            y_arc = [point[1] for point in arc_points_km]
+            z_arc = [point[2] for point in arc_points_km]
+            traces.append(
+                go.Scatter3d(
+                    x=[0.0, x_arc[0]],
+                    y=[0.0, y_arc[0]],
+                    z=[0.0, z_arc[0]],
+                    mode="lines",
+                    line={"width": 4, "color": color},
+                    name=f"{body_name} start direction",
+                    hoverinfo="skip",
+                )
+            )
+            traces.append(
+                go.Scatter3d(
+                    x=[0.0, x_arc[-1]],
+                    y=[0.0, y_arc[-1]],
+                    z=[0.0, z_arc[-1]],
+                    mode="lines",
+                    line={"width": 4, "color": color},
+                    name=f"{body_name} end direction",
+                    hoverinfo="skip",
+                )
+            )
+            traces.append(
+                go.Scatter3d(
+                    x=x_arc,
+                    y=y_arc,
+                    z=z_arc,
+                    mode="lines",
+                    line={"width": 5, "color": color},
+                    name=f"{body_name} direction arc",
+                    hoverinfo="skip",
+                )
+            )
+            traces.append(
+                go.Scatter3d(
+                    x=[x_arc[0]],
+                    y=[y_arc[0]],
+                    z=[z_arc[0]],
+                    mode="markers",
+                    marker={"size": 4, "color": color},
+                    name=f"{body_name} start",
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+
+            tangent = [
+                arc_points_km[-1][axis] - arc_points_km[-2][axis]
+                for axis in range(3)
+            ]
+            tangent_norm = math.sqrt(sum(component * component for component in tangent))
+            if tangent_norm > 0.0:
+                arrow_vector = [
+                    component / tangent_norm * arrow_length_km for component in tangent
+                ]
+                cone_tail = [
+                    arc_points_km[-1][axis] - arrow_vector[axis] * 0.8
+                    for axis in range(3)
+                ]
+                traces.append(
+                    go.Cone(
+                        x=[cone_tail[0]],
+                        y=[cone_tail[1]],
+                        z=[cone_tail[2]],
+                        u=[arrow_vector[0]],
+                        v=[arrow_vector[1]],
+                        w=[arrow_vector[2]],
+                        anchor="tail",
+                        colorscale=[[0.0, color], [1.0, color]],
+                        showscale=False,
+                        sizemode="absolute",
+                        sizeref=max(arrow_length_km * 0.55, 0.1),
+                        name=f"{body_name} direction arrow",
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
+                )
+            traces.append(
+                go.Scatter3d(
+                    x=[x_arc[-1]],
+                    y=[y_arc[-1]],
+                    z=[z_arc[-1]],
+                    mode="markers",
+                    marker={"size": 5, "color": color, "symbol": "diamond"},
+                    name=f"{body_name} end",
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+        else:
+            point = arc_points_km[0]
+            traces.append(
+                go.Scatter3d(
+                    x=[0.0, point[0]],
+                    y=[0.0, point[1]],
+                    z=[0.0, point[2]],
+                    mode="lines+markers",
+                    line={"width": 4, "color": color},
+                    marker={"size": 4, "color": color},
+                    name=f"{body_name} direction",
+                    hoverinfo="skip",
+                )
+            )
+
+    return traces
+
+
 def trajectory_figure(
     artifact_path: Path,
     states: list[list[float]],
@@ -454,6 +606,7 @@ def trajectory_figure(
     j2_enabled: bool,
     show_earth: bool,
     reference_vectors_m: dict[str, list[float]] | None = None,
+    reference_vector_tracks_m: dict[str, dict[str, list[list[float]] | list[float]]] | None = None,
 ) -> go.Figure:
     if not states or not times:
         return empty_figure("3D Animated Trajectory: no data")
@@ -567,24 +720,13 @@ def trajectory_figure(
     if equator_trace is not None:
         traces.append(equator_trace)
 
-    if reference_vectors_m:
-        body_colors = {"sun": "#f59e0b", "moon": "#2563eb"}
-        for body_name, vector in reference_vectors_m.items():
-            norm = math.sqrt(sum(component * component for component in vector))
-            if norm == 0.0:
-                continue
-            scaled = [component / norm * orbit_scale * 1.2 for component in vector]
-            traces.append(
-                go.Scatter3d(
-                    x=[0.0, scaled[0]],
-                    y=[0.0, scaled[1]],
-                    z=[0.0, scaled[2]],
-                    mode="lines+markers",
-                    line={"width": 4, "color": body_colors.get(body_name, "#6b7280")},
-                    marker={"size": 4, "color": body_colors.get(body_name, "#6b7280")},
-                    name=f"{body_name} direction",
-                )
-            )
+    traces.extend(
+        reference_direction_traces(
+            reference_vectors_m=reference_vectors_m,
+            reference_vector_tracks_m=reference_vector_tracks_m,
+            orbit_scale_km=orbit_scale,
+        )
+    )
 
     figure = go.Figure(data=traces)
     figure.update_layout(
@@ -670,9 +812,10 @@ def orbital_elements_figure(
         "Eccentricity",
         "Inclination [deg]",
         "RAAN [deg]",
+        "Argument Of Periapsis [deg]",
     )
     figure = make_subplots(
-        rows=4,
+        rows=5,
         cols=1,
         shared_xaxes=True,
         vertical_spacing=0.08,
@@ -684,6 +827,7 @@ def orbital_elements_figure(
         ("eccentricity", "#7c3aed"),
         ("inclination_deg", "#b45309"),
         ("raan_deg", "#1f2937"),
+        ("argument_of_periapsis_deg", "#dc2626"),
     ]
 
     has_data = False
@@ -713,10 +857,10 @@ def orbital_elements_figure(
         title={"text": "<b>Orbital Elements</b>", "x": 0.02, "font": TITLE_FONT},
         paper_bgcolor=PAPER_BG,
         plot_bgcolor=PANEL_BG,
-        height=900,
+        height=1080,
         margin={"l": 60, "r": 20, "t": 72, "b": 48},
     )
-    figure.update_xaxes(title_text="Time [s]", row=4, col=1)
+    figure.update_xaxes(title_text="Time [s]", row=5, col=1)
     return figure
 
 
@@ -792,6 +936,21 @@ app.layout = html.Div(
                             ],
                         ),
                         html.Div(
+                            className="control-group",
+                            children=[
+                                html.Label("Orbit Definition", className="control-label"),
+                                dcc.Dropdown(
+                                    id="orbit-definition-input",
+                                    options=[
+                                        {"label": "Circular From Altitude", "value": "circular"},
+                                        {"label": "Keplerian Elements", "value": "keplerian"},
+                                    ],
+                                    value="circular",
+                                    clearable=False,
+                                ),
+                            ],
+                        ),
+                        html.Div(
                             className="control-grid",
                             children=[
                                 html.Div(
@@ -802,6 +961,33 @@ app.layout = html.Div(
                                             id="altitude-input",
                                             type="number",
                                             value=500.0,
+                                            className="control-input",
+                                        ),
+                                    ],
+                                ),
+                                html.Div(
+                                    className="control-group",
+                                    children=[
+                                        html.Label("Semi-Major Axis [km]", className="control-label"),
+                                        dcc.Input(
+                                            id="semimajor-axis-input",
+                                            type="number",
+                                            value=6878.1363,
+                                            className="control-input",
+                                        ),
+                                    ],
+                                ),
+                                html.Div(
+                                    className="control-group",
+                                    children=[
+                                        html.Label("Eccentricity", className="control-label"),
+                                        dcc.Input(
+                                            id="eccentricity-input",
+                                            type="number",
+                                            value=0.0,
+                                            min=0.0,
+                                            max=0.999999,
+                                            step=0.001,
                                             className="control-input",
                                         ),
                                     ],
@@ -827,6 +1013,21 @@ app.layout = html.Div(
                                         html.Label("RAAN [deg]", className="control-label"),
                                         dcc.Input(
                                             id="raan-input",
+                                            type="number",
+                                            value=0.0,
+                                            className="control-input",
+                                        ),
+                                    ],
+                                ),
+                                html.Div(
+                                    className="control-group",
+                                    children=[
+                                        html.Label(
+                                            "Arg. Of Periapsis [deg]",
+                                            className="control-label",
+                                        ),
+                                        dcc.Input(
+                                            id="argument-of-periapsis-input",
                                             type="number",
                                             value=0.0,
                                             className="control-input",
@@ -982,6 +1183,23 @@ app.layout = html.Div(
                                     ],
                                     value="piecewise_exponential",
                                     clearable=False,
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            className="control-group",
+                            children=[
+                                html.Label("Atmosphere Options", className="control-label"),
+                                dcc.Checklist(
+                                    id="atmosphere-options-input",
+                                    options=[
+                                        {
+                                            "label": "Corotating Atmosphere",
+                                            "value": "corotating_atmosphere",
+                                        },
+                                    ],
+                                    value=["corotating_atmosphere"],
+                                    className="force-checklist",
                                 ),
                             ],
                         ),
@@ -1227,6 +1445,21 @@ def update_moon_phase_hint(
     return describe_moon_geometry(start_epoch_utc)
 
 
+@app.callback(
+    Output("altitude-input", "disabled"),
+    Output("semimajor-axis-input", "disabled"),
+    Output("eccentricity-input", "disabled"),
+    Output("argument-of-periapsis-input", "disabled"),
+    Input("orbit-definition-input", "value"),
+)
+def update_orbit_definition_field_states(
+    orbit_definition: str | None,
+) -> tuple[bool, bool, bool, bool]:
+    if orbit_definition == "keplerian":
+        return True, False, False, False
+    return False, True, True, True
+
+
 # @app.callback(
 #     Output("sampling-estimate", "children"),
 #     Input("altitude-input", "value"),
@@ -1378,9 +1611,13 @@ def advance_animation_frame(
     Input("launch-button", "n_clicks"),
     State("run-selector", "value"),
     State("run-name-input", "value"),
+    State("orbit-definition-input", "value"),
     State("altitude-input", "value"),
+    State("semimajor-axis-input", "value"),
+    State("eccentricity-input", "value"),
     State("inclination-input", "value"),
     State("raan-input", "value"),
+    State("argument-of-periapsis-input", "value"),
     State("true-anomaly-input", "value"),
     State("start-date-input", "date"),
     State("start-time-input", "value"),
@@ -1392,6 +1629,7 @@ def advance_animation_frame(
     State("reflectivity-input", "value"),
     State("integrator-backend-input", "value"),
     State("atmosphere-model-input", "value"),
+    State("atmosphere-options-input", "value"),
     State("force-selection-input", "value"),
 )
 def manage_runs(
@@ -1400,9 +1638,13 @@ def manage_runs(
     _launch_clicks: int | None,
     current_value: str | None,
     run_name: str | None,
+    orbit_definition: str | None,
     altitude_km: float | None,
+    semimajor_axis_km: float | None,
+    eccentricity: float | None,
     inclination_deg: float | None,
     raan_deg: float | None,
+    argument_of_periapsis_deg: float | None,
     true_anomaly_deg: float | None,
     start_date_utc: str | None,
     start_time_utc: str | None,
@@ -1414,6 +1656,7 @@ def manage_runs(
     reflectivity_coefficient: float | None,
     integrator_backend: str | None,
     atmosphere_model: str | None,
+    atmosphere_options: list[str] | None,
     selected_forces: list[str] | None,
 ) -> tuple[list[dict[str, str]], str | None, str, str]:
     trigger = ctx.triggered_id
@@ -1428,17 +1671,26 @@ def manage_runs(
 
     if trigger == "launch-button":
         try:
-            if altitude_km is None or duration_s is None or samples_per_orbit is None:
-                raise ValueError(
-                    "Altitude, duration, and samples per orbit are required."
-                )
+            if duration_s is None or samples_per_orbit is None:
+                raise ValueError("Duration and samples per orbit are required.")
+            safe_orbit_definition = orbit_definition or "circular"
+            if safe_orbit_definition == "circular" and altitude_km is None:
+                raise ValueError("Altitude is required for circular initialization.")
+            if safe_orbit_definition == "keplerian" and semimajor_axis_km is None:
+                raise ValueError("Semi-major axis is required for keplerian initialization.")
             start_epoch_utc = build_start_epoch_utc(start_date_utc, start_time_utc)
             output_path = launch_simulation_from_ui(
                 results_dir=RESULTS_DIR,
                 run_name=run_name or "ui_run",
-                altitude_km=float(altitude_km),
+                orbit_definition=safe_orbit_definition,
+                altitude_km=float(altitude_km) if altitude_km is not None else None,
+                semimajor_axis_km=(
+                    float(semimajor_axis_km) if semimajor_axis_km is not None else None
+                ),
+                eccentricity=float(eccentricity or 0.0),
                 inclination_deg=float(inclination_deg or 0.0),
                 raan_deg=float(raan_deg or 0.0),
+                argument_of_periapsis_deg=float(argument_of_periapsis_deg or 0.0),
                 true_anomaly_deg=float(true_anomaly_deg or 0.0),
                 start_epoch_utc=start_epoch_utc,
                 duration_s=float(duration_s),
@@ -1449,6 +1701,9 @@ def manage_runs(
                 drag_coefficient=float(drag_coefficient or 2.2),
                 reflectivity_coefficient=float(reflectivity_coefficient or 1.2),
                 atmosphere_model=atmosphere_model or "piecewise_exponential",
+                corotating_atmosphere=bool(
+                    atmosphere_options and "corotating_atmosphere" in atmosphere_options
+                ),
                 enable_j2=bool(selected_forces and "j2" in selected_forces),
                 enable_drag=bool(selected_forces and "drag" in selected_forces),
                 enable_solar_radiation_pressure=bool(
@@ -1543,6 +1798,7 @@ def update_trajectory_base_figure(
     central_body_parameters = artifact.get("parameters", {}).get("central_body", {})
     force_parameters = artifact.get("parameters", {}).get("forces", {})
     reference_vectors_m = artifact.get("metadata", {}).get("reference_vectors_m", {})
+    reference_vector_tracks_m = artifact.get("metadata", {}).get("reference_vector_tracks_m", {})
 
     return trajectory_figure(
         artifact_path,
@@ -1556,6 +1812,7 @@ def update_trajectory_base_figure(
         bool(force_parameters.get("j2", False)),
         bool(show_earth_values and "show_earth" in show_earth_values),
         reference_vectors_m,
+        reference_vector_tracks_m,
     )
 
 

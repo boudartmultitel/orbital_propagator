@@ -25,6 +25,42 @@ class SimulationResult:
         return sum(self.accelerations_by_force_m_s2.values())
 
 
+def _sample_indices(sample_count: int, max_samples: int = 96) -> np.ndarray:
+    if sample_count <= 0:
+        return np.array([], dtype=int)
+    if sample_count <= max_samples:
+        return np.arange(sample_count, dtype=int)
+    return np.unique(np.linspace(0, sample_count - 1, num=max_samples, dtype=int))
+
+
+def _reference_vector_tracks(
+    request: SimulationRequest,
+    times_s: np.ndarray,
+) -> dict[str, dict[str, np.ndarray]]:
+    body_names: list[str] = []
+    if request.forces.third_body_sun or request.forces.solar_radiation_pressure:
+        body_names.append("sun")
+    if request.forces.third_body_moon:
+        body_names.append("moon")
+
+    track_indices = _sample_indices(len(times_s))
+    tracks: dict[str, dict[str, np.ndarray]] = {}
+    for body_name in body_names:
+        sampled_times_s = times_s[track_indices] + float(request.propagation.start_time_s)
+        sampled_vectors_m = np.array(
+            [
+                body_position_m(body_name, request.propagation.start_epoch_utc, elapsed_time_s)
+                for elapsed_time_s in sampled_times_s
+            ],
+            dtype=float,
+        )
+        tracks[body_name] = {
+            "times_s": sampled_times_s,
+            "vectors_m": sampled_vectors_m,
+        }
+    return tracks
+
+
 def run_simulation(request: SimulationRequest) -> SimulationResult:
     times_s = np.linspace(
         0.0,
@@ -65,19 +101,12 @@ def run_simulation(request: SimulationRequest) -> SimulationResult:
             accelerations_by_force[force_name][index] = acceleration
 
     derived_series = compute_derived_series(states_m_s, request.central_body)
-    reference_vectors_m: dict[str, np.ndarray] = {}
-    if request.forces.third_body_sun or request.forces.solar_radiation_pressure:
-        reference_vectors_m["sun"] = body_position_m(
-            "sun",
-            request.propagation.start_epoch_utc,
-            request.propagation.start_time_s,
-        )
-    if request.forces.third_body_moon:
-        reference_vectors_m["moon"] = body_position_m(
-            "moon",
-            request.propagation.start_epoch_utc,
-            request.propagation.start_time_s,
-        )
+    reference_vector_tracks_m = _reference_vector_tracks(request, times_s)
+    reference_vectors_m = {
+        body_name: track["vectors_m"][0]
+        for body_name, track in reference_vector_tracks_m.items()
+        if len(track["vectors_m"]) > 0
+    }
 
     return SimulationResult(
         times_s=times_s,
@@ -87,6 +116,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResult:
         metadata={
             "ephemeris_source": ephemeris_source_name(),
             "reference_vectors_m": reference_vectors_m,
+            "reference_vector_tracks_m": reference_vector_tracks_m,
         },
     )
 

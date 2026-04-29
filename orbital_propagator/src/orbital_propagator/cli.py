@@ -17,6 +17,7 @@ from orbital_propagator.config import (
     SimulationRequest,
     SpacecraftConfig,
     circular_orbit_state,
+    keplerian_orbit_state,
 )
 from orbital_propagator.io.artifacts import build_run_artifact, save_run_artifact
 from orbital_propagator.propagation.runner import run_simulation
@@ -55,10 +56,34 @@ def parse_args() -> argparse.Namespace:
         help="Number of stored samples including the initial state.",
     )
     parser.add_argument(
+        "--orbit-definition",
+        choices=("circular", "keplerian"),
+        default="circular",
+        help="How to build the initial orbit state.",
+    )
+    parser.add_argument(
         "--altitude-km",
         type=float,
         default=621.8637,
         help="Initial circular orbit altitude above Earth's radius in kilometers.",
+    )
+    parser.add_argument(
+        "--semimajor-axis-km",
+        type=float,
+        default=None,
+        help="Semimajor axis in kilometers when --orbit-definition keplerian is used.",
+    )
+    parser.add_argument(
+        "--eccentricity",
+        type=float,
+        default=0.0,
+        help="Initial orbital eccentricity when --orbit-definition keplerian is used.",
+    )
+    parser.add_argument(
+        "--argument-of-periapsis-deg",
+        type=float,
+        default=0.0,
+        help="Initial argument of periapsis in degrees for keplerian initialization.",
     )
     parser.add_argument(
         "--inclination-deg",
@@ -118,6 +143,11 @@ def parse_args() -> argparse.Namespace:
         help="Atmosphere density model to use when drag is enabled.",
     )
     parser.add_argument(
+        "--disable-atmosphere-corotation",
+        action="store_true",
+        help="Disable the default corotating-atmosphere assumption in the drag model.",
+    )
+    parser.add_argument(
         "--enable-srp",
         action="store_true",
         help="Enable the solar radiation pressure force model.",
@@ -161,13 +191,28 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    initial_state_m_s = circular_orbit_state(
-        central_body=EARTH,
-        altitude_m=args.altitude_km * 1_000.0,
-        inclination_deg=args.inclination_deg,
-        raan_deg=args.raan_deg,
-        true_anomaly_deg=args.true_anomaly_deg,
-    )
+    if args.orbit_definition == "circular":
+        initial_state_m_s = circular_orbit_state(
+            central_body=EARTH,
+            altitude_m=args.altitude_km * 1_000.0,
+            inclination_deg=args.inclination_deg,
+            raan_deg=args.raan_deg,
+            true_anomaly_deg=args.true_anomaly_deg,
+        )
+    else:
+        if args.semimajor_axis_km is None:
+            raise ValueError(
+                "--semimajor-axis-km is required when --orbit-definition keplerian is used."
+            )
+        initial_state_m_s = keplerian_orbit_state(
+            central_body=EARTH,
+            semimajor_axis_m=args.semimajor_axis_km * 1_000.0,
+            eccentricity=args.eccentricity,
+            inclination_deg=args.inclination_deg,
+            raan_deg=args.raan_deg,
+            argument_of_periapsis_deg=args.argument_of_periapsis_deg,
+            true_anomaly_deg=args.true_anomaly_deg,
+        )
     request = SimulationRequest(
         run_name=args.run_name,
         producer="simulation",
@@ -195,6 +240,7 @@ def main() -> None:
             j2=args.enable_j2,
             drag=args.enable_drag,
             atmosphere_model=args.atmosphere_model,
+            corotating_atmosphere=not args.disable_atmosphere_corotation,
             solar_radiation_pressure=args.enable_srp,
             third_body_sun=args.enable_third_body_sun,
             third_body_moon=args.enable_third_body_moon,

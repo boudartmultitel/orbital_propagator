@@ -25,9 +25,11 @@ def _unique_output_path(results_dir: Path, slug: str) -> Path:
 
 def estimate_sampling_parameters(
     *,
-    altitude_km: float,
+    orbit_definition: str,
     duration_s: float,
     samples_per_orbit: int,
+    altitude_km: float | None = None,
+    semimajor_axis_km: float | None = None,
 ) -> dict[str, float]:
     try:
         from orbital_propagator.bodies.earth import EARTH
@@ -37,8 +39,18 @@ def estimate_sampling_parameters(
             "Check the Docker volume mount and PYTHONPATH configuration."
         ) from exc
 
-    radius_m = EARTH.radius_m + float(altitude_km) * 1_000.0
-    orbit_period_s = 2.0 * math.pi * math.sqrt(radius_m**3 / EARTH.mu_m3_s2)
+    if orbit_definition == "circular":
+        if altitude_km is None:
+            raise ValueError("Altitude is required for circular-orbit sampling estimates.")
+        semimajor_axis_m = EARTH.radius_m + float(altitude_km) * 1_000.0
+    elif orbit_definition == "keplerian":
+        if semimajor_axis_km is None:
+            raise ValueError("Semimajor axis is required for keplerian sampling estimates.")
+        semimajor_axis_m = float(semimajor_axis_km) * 1_000.0
+    else:
+        raise ValueError(f"Unsupported orbit definition: {orbit_definition}")
+
+    orbit_period_s = 2.0 * math.pi * math.sqrt(semimajor_axis_m**3 / EARTH.mu_m3_s2)
     orbit_count = max(float(duration_s), 0.0) / orbit_period_s if orbit_period_s > 0.0 else 0.0
     sample_count = max(
         2,
@@ -55,9 +67,13 @@ def launch_simulation_from_ui(
     *,
     results_dir: Path,
     run_name: str,
-    altitude_km: float,
+    orbit_definition: str,
+    altitude_km: float | None,
+    semimajor_axis_km: float | None,
+    eccentricity: float,
     inclination_deg: float,
     raan_deg: float,
+    argument_of_periapsis_deg: float,
     true_anomaly_deg: float,
     duration_s: float,
     samples_per_orbit: int,
@@ -68,6 +84,7 @@ def launch_simulation_from_ui(
     drag_coefficient: float,
     reflectivity_coefficient: float,
     atmosphere_model: str,
+    corotating_atmosphere: bool,
     enable_j2: bool,
     enable_drag: bool,
     enable_solar_radiation_pressure: bool,
@@ -83,6 +100,7 @@ def launch_simulation_from_ui(
             SimulationRequest,
             SpacecraftConfig,
             circular_orbit_state,
+            keplerian_orbit_state,
         )
         from orbital_propagator.io.artifacts import build_run_artifact, save_run_artifact
         from orbital_propagator.propagation.runner import run_simulation
@@ -96,17 +114,36 @@ def launch_simulation_from_ui(
     slug = _safe_slug(clean_name)
     output_path = _unique_output_path(results_dir, slug)
     sampling = estimate_sampling_parameters(
-        altitude_km=altitude_km,
+        orbit_definition=orbit_definition,
         duration_s=duration_s,
         samples_per_orbit=samples_per_orbit,
+        altitude_km=altitude_km,
+        semimajor_axis_km=semimajor_axis_km,
     )
-    initial_state_m_s = circular_orbit_state(
-        central_body=EARTH,
-        altitude_m=altitude_km * 1_000.0,
-        inclination_deg=inclination_deg,
-        raan_deg=raan_deg,
-        true_anomaly_deg=true_anomaly_deg,
-    )
+    if orbit_definition == "circular":
+        if altitude_km is None:
+            raise ValueError("Altitude is required for circular orbit initialization.")
+        initial_state_m_s = circular_orbit_state(
+            central_body=EARTH,
+            altitude_m=altitude_km * 1_000.0,
+            inclination_deg=inclination_deg,
+            raan_deg=raan_deg,
+            true_anomaly_deg=true_anomaly_deg,
+        )
+    elif orbit_definition == "keplerian":
+        if semimajor_axis_km is None:
+            raise ValueError("Semimajor axis is required for keplerian orbit initialization.")
+        initial_state_m_s = keplerian_orbit_state(
+            central_body=EARTH,
+            semimajor_axis_m=semimajor_axis_km * 1_000.0,
+            eccentricity=eccentricity,
+            inclination_deg=inclination_deg,
+            raan_deg=raan_deg,
+            argument_of_periapsis_deg=argument_of_periapsis_deg,
+            true_anomaly_deg=true_anomaly_deg,
+        )
+    else:
+        raise ValueError(f"Unsupported orbit definition: {orbit_definition}")
     request = SimulationRequest(
         run_name=clean_name,
         producer="ui",
@@ -131,6 +168,7 @@ def launch_simulation_from_ui(
             j2=enable_j2,
             drag=enable_drag,
             atmosphere_model=atmosphere_model,
+            corotating_atmosphere=corotating_atmosphere,
             solar_radiation_pressure=enable_solar_radiation_pressure,
             third_body_sun=enable_third_body_sun,
             third_body_moon=enable_third_body_moon,

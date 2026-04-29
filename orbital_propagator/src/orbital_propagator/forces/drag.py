@@ -197,6 +197,7 @@ def atmospheric_drag_acceleration(
     cross_section_area_m2: float,
     mass_kg: float,
     atmosphere_model: str = "piecewise_exponential",
+    corotating_atmosphere: bool = True,
 ) -> np.ndarray:
     altitude_m = np.linalg.norm(position_m) - body_radius_m
     if atmosphere_model == "piecewise_exponential":
@@ -216,8 +217,11 @@ def atmospheric_drag_acceleration(
     else:
         raise ValueError(f"Unsupported atmosphere model: {atmosphere_model}")
 
-    omega_vector_rad_s = np.array([0.0, 0.0, body_rotation_rate_rad_s], dtype=float)
-    atmosphere_velocity_m_s = np.cross(omega_vector_rad_s, position_m)
+    if corotating_atmosphere:
+        omega_vector_rad_s = np.array([0.0, 0.0, body_rotation_rate_rad_s], dtype=float)
+        atmosphere_velocity_m_s = np.cross(omega_vector_rad_s, position_m)
+    else:
+        atmosphere_velocity_m_s = np.zeros(3, dtype=float)
     relative_velocity_m_s = velocity_m_s - atmosphere_velocity_m_s
     speed_m_s = np.linalg.norm(relative_velocity_m_s)
     if speed_m_s == 0.0:

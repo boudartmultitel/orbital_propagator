@@ -480,7 +480,7 @@ Shared storage convention:
 
 ## Proposed Implementation Sequence
 
-### Phase 0. Project scaffolding
+### Phase 0. Project scaffolding [V]
 
 Deliverables:
 
@@ -496,7 +496,7 @@ Recommendation:
 - only convert for display or export
 - define the shared results volume and artifact path before any simulation code
 
-### Phase 1. Deterministic propagator MVP
+### Phase 1. Deterministic propagator MVP [V]
 
 Deliverables:
 
@@ -507,7 +507,7 @@ Deliverables:
 
 This is the first non-negotiable milestone.
 
-### Phase 2. Full Earth perturbation set
+### Phase 2. Full Earth perturbation set [V]
 
 Deliverables:
 
@@ -519,6 +519,14 @@ Deliverables:
 Exit criterion:
 
 - one configurable Earth orbit scenario can be run with any subset of perturbations enabled
+
+### Phase 2.5. Adaptation of the UI and perturbations [V]
+
+- implement initial parameters for eccentric orbits
+- implement rotating atmosphere
+- plot missing omega orbital element
+- add Sun and Moon direction changes for long propagation
+
 
 ### Phase 3. Validation framework
 
@@ -538,12 +546,13 @@ Exit criterion:
 
 Deliverables:
 
-- stable run artifact schema for saved outputs
-- loader utilities for reading trajectory/result files
-- Dash app for inspecting saved runs
-- 3D trajectory view
-- acceleration and orbital-element plots
-- comparison mode for two or more runs
+- [X] stable run artifact schema for saved outputs
+- [X] loader utilities for reading trajectory/result files
+- [X] Dash app for inspecting saved runs
+- [X] 3D trajectory view
+- [X] Earth's 3D spherical and ellipsoid views
+- [X] acceleration and orbital-element plots
+- [ ] comparison mode for two or more runs
 
 Exit criterion:
 
@@ -560,8 +569,8 @@ Implementation note:
 
 Optional upgrade:
 
-- move selected views to `pyvista` + `trame`
-- render planet sphere, atmosphere shell, Sun direction, and orbit trails with stronger visual quality
+- [ ] move selected views to `pyvista` + `trame`
+- [X] render planet sphere, atmosphere shell, Sun direction, and orbit trails with stronger visual quality
 
 ### Phase 6. Dataset pipeline
 

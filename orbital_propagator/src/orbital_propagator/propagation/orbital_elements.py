@@ -32,12 +32,14 @@ def compute_derived_series(
     k_hat = np.array([0.0, 0.0, 1.0], dtype=float)
     node_vectors = np.cross(np.tile(k_hat, (len(states_m_s), 1)), angular_momentum)
     node_norm = np.linalg.norm(node_vectors, axis=1)
+    node_norm_safe = np.maximum(node_norm, eps)
 
     eccentricity_vectors = (
         np.cross(velocities_m_s, angular_momentum) / central_body.mu_m3_s2
         - positions_m / radius_safe_m[:, None]
     )
     eccentricity = np.linalg.norm(eccentricity_vectors, axis=1)
+    eccentricity_safe = np.maximum(eccentricity, eps)
 
     inclination_rad = np.arccos(
         np.clip(angular_momentum[:, 2] / angular_momentum_norm_safe, -1.0, 1.0)
@@ -46,6 +48,22 @@ def compute_derived_series(
 
     raan_rad = np.arctan2(node_vectors[:, 1], node_vectors[:, 0])
     raan_deg = np.degrees(np.unwrap(raan_rad))
+
+    cross_node_eccentricity = np.cross(node_vectors, eccentricity_vectors)
+    argument_of_periapsis_rad = np.arctan2(
+        np.sum(cross_node_eccentricity * angular_momentum, axis=1)
+        / (node_norm_safe * eccentricity_safe * angular_momentum_norm_safe),
+        np.sum(node_vectors * eccentricity_vectors, axis=1)
+        / (node_norm_safe * eccentricity_safe),
+    )
+    argument_of_periapsis_deg = np.degrees(np.unwrap(argument_of_periapsis_rad))
+
+    near_circular_or_equatorial = (eccentricity < 1e-9) | (node_norm < 1e-9)
+    argument_of_periapsis_deg = np.where(
+        near_circular_or_equatorial,
+        0.0,
+        argument_of_periapsis_deg,
+    )
 
     return {
         "radius_m": radius_m,
@@ -56,6 +74,7 @@ def compute_derived_series(
         "eccentricity": eccentricity,
         "inclination_deg": inclination_deg,
         "raan_deg": raan_deg,
+        "argument_of_periapsis_deg": argument_of_periapsis_deg,
         "angular_momentum_m2_s": angular_momentum_norm,
         "node_vector_norm_m2_s": node_norm,
     }

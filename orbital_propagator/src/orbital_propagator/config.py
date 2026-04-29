@@ -47,6 +47,7 @@ class ForceModelConfig:
     j2: bool = False
     drag: bool = False
     atmosphere_model: str = "piecewise_exponential"
+    corotating_atmosphere: bool = True
     solar_radiation_pressure: bool = False
     third_body_sun: bool = False
     third_body_moon: bool = False
@@ -64,27 +65,37 @@ class SimulationRequest:
     forces: ForceModelConfig
 
 
-def circular_orbit_state(
+def _validate_orbit_above_surface(
+    *,
     central_body: CentralBodyConfig,
-    altitude_m: float,
-    inclination_deg: float = 0.0,
-    raan_deg: float = 0.0,
-    true_anomaly_deg: float = 0.0,
-) -> np.ndarray:
-    radius_m = central_body.radius_m + altitude_m
-    speed_m_s = sqrt(central_body.mu_m3_s2 / radius_m)
+    periapsis_radius_m: float,
+) -> None:
+    periapsis_altitude_m = periapsis_radius_m - central_body.radius_m
+    if periapsis_altitude_m < 0.0:
+        raise ValueError(
+            "The requested orbit intersects the central body: "
+            f"periapsis altitude is {periapsis_altitude_m / 1_000.0:.3f} km."
+        )
 
-    nu = radians(true_anomaly_deg)
+
+def _perifocal_to_inertial_rotation(
+    *,
+    inclination_deg: float,
+    raan_deg: float,
+    argument_of_periapsis_deg: float,
+) -> np.ndarray:
     inclination = radians(inclination_deg)
     raan = radians(raan_deg)
+    argument_of_periapsis = radians(argument_of_periapsis_deg)
 
-    position_perifocal = np.array(
-        [radius_m * cos(nu), radius_m * sin(nu), 0.0], dtype=float
+    rotation_argument_of_periapsis = np.array(
+        [
+            [cos(argument_of_periapsis), -sin(argument_of_periapsis), 0.0],
+            [sin(argument_of_periapsis), cos(argument_of_periapsis), 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=float,
     )
-    velocity_perifocal = np.array(
-        [-speed_m_s * sin(nu), speed_m_s * cos(nu), 0.0], dtype=float
-    )
-
     rotation_raan = np.array(
         [
             [cos(raan), -sin(raan), 0.0],
@@ -101,9 +112,70 @@ def circular_orbit_state(
         ],
         dtype=float,
     )
+    return rotation_raan @ rotation_inclination @ rotation_argument_of_periapsis
 
-    rotation_matrix = rotation_raan @ rotation_inclination
+
+def keplerian_orbit_state(
+    central_body: CentralBodyConfig,
+    semimajor_axis_m: float,
+    eccentricity: float,
+    inclination_deg: float = 0.0,
+    raan_deg: float = 0.0,
+    argument_of_periapsis_deg: float = 0.0,
+    true_anomaly_deg: float = 0.0,
+) -> np.ndarray:
+    if semimajor_axis_m <= 0.0:
+        raise ValueError("Semimajor axis must be strictly positive.")
+    if eccentricity < 0.0 or eccentricity >= 1.0:
+        raise ValueError("Eccentricity must satisfy 0 <= e < 1 for elliptical orbits.")
+    periapsis_radius_m = semimajor_axis_m * (1.0 - eccentricity)
+    _validate_orbit_above_surface(
+        central_body=central_body,
+        periapsis_radius_m=periapsis_radius_m,
+    )
+
+    nu = radians(true_anomaly_deg)
+    semi_latus_rectum_m = semimajor_axis_m * (1.0 - eccentricity**2)
+    if semi_latus_rectum_m <= 0.0:
+        raise ValueError("Semimajor axis and eccentricity produce an invalid orbit.")
+
+    radius_m = semi_latus_rectum_m / (1.0 + eccentricity * cos(nu))
+    speed_scale_m_s = sqrt(central_body.mu_m3_s2 / semi_latus_rectum_m)
+
+    position_perifocal = np.array(
+        [radius_m * cos(nu), radius_m * sin(nu), 0.0], dtype=float
+    )
+    velocity_perifocal = np.array(
+        [-speed_scale_m_s * sin(nu), speed_scale_m_s * (eccentricity + cos(nu)), 0.0],
+        dtype=float,
+    )
+    rotation_matrix = _perifocal_to_inertial_rotation(
+        inclination_deg=inclination_deg,
+        raan_deg=raan_deg,
+        argument_of_periapsis_deg=argument_of_periapsis_deg,
+    )
     position = rotation_matrix @ position_perifocal
     velocity = rotation_matrix @ velocity_perifocal
 
     return np.concatenate([position, velocity])
+
+
+def circular_orbit_state(
+    central_body: CentralBodyConfig,
+    altitude_m: float,
+    inclination_deg: float = 0.0,
+    raan_deg: float = 0.0,
+    true_anomaly_deg: float = 0.0,
+) -> np.ndarray:
+    if altitude_m < 0.0:
+        raise ValueError("Altitude must be non-negative for circular orbit initialization.")
+    semimajor_axis_m = central_body.radius_m + altitude_m
+    return keplerian_orbit_state(
+        central_body=central_body,
+        semimajor_axis_m=semimajor_axis_m,
+        eccentricity=0.0,
+        inclination_deg=inclination_deg,
+        raan_deg=raan_deg,
+        argument_of_periapsis_deg=0.0,
+        true_anomaly_deg=true_anomaly_deg,
+    )

@@ -13,7 +13,7 @@ from orbital_propagator.config import SimulationRequest
 from orbital_propagator.propagation.runner import SimulationResult
 
 
-SCHEMA_VERSION = "0.3.0"
+SCHEMA_VERSION = "0.4.0"
 
 
 def _rounded_list(array: np.ndarray, decimals: int = 9) -> list[Any]:
@@ -29,6 +29,14 @@ def build_run_artifact(
         metadata["reference_vectors_m"] = {
             name: _rounded_list(values)
             for name, values in metadata["reference_vectors_m"].items()
+        }
+    if "reference_vector_tracks_m" in metadata:
+        metadata["reference_vector_tracks_m"] = {
+            name: {
+                "times_s": _rounded_list(track["times_s"]),
+                "vectors_m": _rounded_list(track["vectors_m"]),
+            }
+            for name, track in metadata["reference_vector_tracks_m"].items()
         }
 
     summary = {

@@ -58,6 +58,7 @@ def evaluate_accelerations(
             cross_section_area_m2=spacecraft.cross_section_area_m2,
             mass_kg=spacecraft.mass_kg,
             atmosphere_model=forces.atmosphere_model,
+            corotating_atmosphere=forces.corotating_atmosphere,
         )
     if forces.third_body_sun or forces.solar_radiation_pressure:
         sun_position = body_position_m("sun", start_epoch_utc, elapsed_time_s)
