@@ -607,6 +607,7 @@ def trajectory_figure(
     show_earth: bool,
     reference_vectors_m: dict[str, list[float]] | None = None,
     reference_vector_tracks_m: dict[str, dict[str, list[list[float]] | list[float]]] | None = None,
+    show_current_marker: bool = True,
 ) -> go.Figure:
     if not states or not times:
         return empty_figure("3D Animated Trajectory: no data")
@@ -679,14 +680,6 @@ def trajectory_figure(
             name="time-colored trajectory",
         ),
         go.Scatter3d(
-            x=[x[state_index]],
-            y=[y[state_index]],
-            z=[z[state_index]],
-            mode="markers",
-            marker={"size": 7, "color": "#ef4444", "symbol": "diamond"},
-            name="satellite",
-        ),
-        go.Scatter3d(
             x=[x[0]],
             y=[y[0]],
             z=[z[0]],
@@ -703,6 +696,18 @@ def trajectory_figure(
             name="central body",
         ),
     ]
+    if show_current_marker:
+        traces.insert(
+            2,
+            go.Scatter3d(
+                x=[x[state_index]],
+                y=[y[state_index]],
+                z=[z[state_index]],
+                mode="markers",
+                marker={"size": 7, "color": "#ef4444", "symbol": "diamond"},
+                name="satellite",
+            ),
+        )
 
     surface_trace = earth_surface_trace(
         central_body_name=central_body_name,
@@ -884,11 +889,31 @@ def refresh_run_selection(
     return options, selected_value, status
 
 
+def resolve_selector_value(
+    options: list[dict[str, str]],
+    current_value: str | None,
+    *,
+    preferred_value: str | None = None,
+    excluded_values: set[str] | None = None,
+) -> str | None:
+    excluded = excluded_values or set()
+    option_values = [option["value"] for option in options if option["value"] not in excluded]
+    if not option_values:
+        return None
+    if current_value in option_values:
+        return current_value
+    if preferred_value in option_values:
+        return preferred_value
+    return option_values[-1]
+
+
 app.layout = html.Div(
     className="app-shell",
     children=[
         dcc.Interval(id="animation-interval", interval=140, n_intervals=0, disabled=True),
         dcc.Store(id="run-artifact-store"),
+        dcc.Store(id="compare-left-artifact-store"),
+        dcc.Store(id="compare-right-artifact-store"),
         html.Div(
             className="sidebar",
             children=[
@@ -1237,6 +1262,46 @@ app.layout = html.Div(
             className="content",
             children=[
                 html.Div(
+                    id="top-navigation",
+                    style={
+                        "display": "flex",
+                        "justifyContent": "flex-end",
+                        "gap": "12px",
+                        "padding": "12px 0 8px",
+                    },
+                    children=[
+                        html.A(
+                            "Single Run",
+                            href="#single-run-section",
+                            style={
+                                "padding": "8px 12px",
+                                "border": "1px solid #d6c4af",
+                                "borderRadius": "999px",
+                                "color": "#2b2118",
+                                "textDecoration": "none",
+                                "backgroundColor": "#fffaf2",
+                                "fontWeight": "600",
+                            },
+                        ),
+                        html.A(
+                            "Compare Runs",
+                            href="#comparison-section",
+                            style={
+                                "padding": "8px 12px",
+                                "border": "1px solid #d6c4af",
+                                "borderRadius": "999px",
+                                "color": "#2b2118",
+                                "textDecoration": "none",
+                                "backgroundColor": "#fffaf2",
+                                "fontWeight": "600",
+                            },
+                        ),
+                    ],
+                ),
+                html.Div(
+                    id="single-run-section",
+                    children=[
+                html.Div(
                     className="orbit-views",
                     children=[
                         html.Div(
@@ -1422,6 +1487,164 @@ app.layout = html.Div(
                 ),
                 html.H2("Metadata"),
                 html.Pre(id="metadata-panel", className="metadata-panel"),
+                    ],
+                ),
+                html.Div(
+                    id="comparison-section",
+                    style={"paddingTop": "28px"},
+                    children=[
+                        html.Div(
+                            style={"marginBottom": "14px"},
+                            children=[
+                                html.H2(
+                                    "Run Comparison",
+                                    style={"margin": "0 0 6px", "color": "#2b2118"},
+                                ),
+                                html.P(
+                                    "Compare two saved runs with shared 3D styling and aligned orbital-element panels.",
+                                    style={"margin": "0", "color": "#5b4b3b"},
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            style={
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(auto-fit, minmax(240px, 1fr))",
+                                "gap": "14px",
+                                "marginBottom": "18px",
+                            },
+                            children=[
+                                html.Div(
+                                    className="control-group",
+                                    children=[
+                                        html.Label("Left Run", className="control-label"),
+                                        dcc.Dropdown(
+                                            id="compare-left-selector",
+                                            options=build_run_options(),
+                                            placeholder="Select left run",
+                                            clearable=False,
+                                        ),
+                                    ],
+                                ),
+                                html.Div(
+                                    className="control-group",
+                                    children=[
+                                        html.Label("Right Run", className="control-label"),
+                                        dcc.Dropdown(
+                                            id="compare-right-selector",
+                                            options=build_run_options(),
+                                            placeholder="Select right run",
+                                            clearable=False,
+                                        ),
+                                    ],
+                                ),
+                                html.Div(
+                                    className="control-group",
+                                    children=[
+                                        html.Label("3D Exaggeration", className="control-label"),
+                                        dcc.Input(
+                                            id="compare-exaggeration-factor-input",
+                                            type="number",
+                                            value=1.0,
+                                            min=0.0,
+                                            step=0.5,
+                                            className="control-input",
+                                        ),
+                                    ],
+                                ),
+                                html.Div(
+                                    className="control-group",
+                                    children=[
+                                        html.Label("Main Body", className="control-label"),
+                                        dcc.Checklist(
+                                            id="compare-show-earth-input",
+                                            options=[
+                                                {"label": "Show Main Body", "value": "show_earth"},
+                                            ],
+                                            value=[],
+                                            className="orbit-view-checklist",
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            style={
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(2, minmax(0, 1fr))",
+                                "gap": "18px",
+                                "alignItems": "start",
+                            },
+                            children=[
+                                dcc.Graph(
+                                    id="compare-left-trajectory-graph",
+                                    figure=empty_figure("No comparison run selected"),
+                                ),
+                                dcc.Graph(
+                                    id="compare-right-trajectory-graph",
+                                    figure=empty_figure("No comparison run selected"),
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            style={
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(2, minmax(0, 1fr))",
+                                "gap": "18px",
+                                "alignItems": "start",
+                                "marginTop": "12px",
+                            },
+                            children=[
+                                dcc.Graph(
+                                    id="compare-left-perturbations-graph",
+                                    figure=empty_figure("No comparison run selected"),
+                                ),
+                                dcc.Graph(
+                                    id="compare-right-perturbations-graph",
+                                    figure=empty_figure("No comparison run selected"),
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            style={
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(2, minmax(0, 1fr))",
+                                "gap": "18px",
+                                "alignItems": "start",
+                                "marginTop": "12px",
+                            },
+                            children=[
+                                dcc.Graph(
+                                    id="compare-left-altitude-graph",
+                                    figure=empty_figure("No comparison run selected"),
+                                ),
+                                dcc.Graph(
+                                    id="compare-right-altitude-graph",
+                                    figure=empty_figure("No comparison run selected"),
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            style={
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(2, minmax(0, 1fr))",
+                                "gap": "18px",
+                                "alignItems": "start",
+                                "marginTop": "12px",
+                            },
+                            children=[
+                                dcc.Graph(
+                                    id="compare-left-orbital-elements-graph",
+                                    figure=empty_figure("No comparison run selected"),
+                                ),
+                                dcc.Graph(
+                                    id="compare-right-orbital-elements-graph",
+                                    figure=empty_figure("No comparison run selected"),
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
             ],
         ),
     ],
@@ -1533,6 +1756,63 @@ def update_animation_controls(
     Input("run-selector", "value"),
 )
 def load_selected_run_artifact(selected_run: str | None) -> dict[str, Any] | None:
+    if not selected_run:
+        return None
+
+    artifact = load_run_file(Path(selected_run))
+    artifact["_artifact_path"] = selected_run
+    return artifact
+
+
+@app.callback(
+    Output("compare-left-selector", "options"),
+    Output("compare-left-selector", "value"),
+    Output("compare-right-selector", "options"),
+    Output("compare-right-selector", "value"),
+    Input("run-selector", "options"),
+    State("run-selector", "value"),
+    State("compare-left-selector", "value"),
+    State("compare-right-selector", "value"),
+)
+def sync_comparison_selectors(
+    run_options: list[dict[str, str]] | None,
+    primary_selected_run: str | None,
+    current_left_value: str | None,
+    current_right_value: str | None,
+) -> tuple[list[dict[str, str]], str | None, list[dict[str, str]], str | None]:
+    options = run_options or []
+    left_value = resolve_selector_value(
+        options,
+        current_left_value,
+        preferred_value=primary_selected_run,
+    )
+    right_value = resolve_selector_value(
+        options,
+        current_right_value,
+        preferred_value=primary_selected_run,
+        excluded_values={left_value} if left_value else set(),
+    )
+    return options, left_value, options, right_value
+
+
+@app.callback(
+    Output("compare-left-artifact-store", "data"),
+    Input("compare-left-selector", "value"),
+)
+def load_compare_left_artifact(selected_run: str | None) -> dict[str, Any] | None:
+    if not selected_run:
+        return None
+
+    artifact = load_run_file(Path(selected_run))
+    artifact["_artifact_path"] = selected_run
+    return artifact
+
+
+@app.callback(
+    Output("compare-right-artifact-store", "data"),
+    Input("compare-right-selector", "value"),
+)
+def load_compare_right_artifact(selected_run: str | None) -> dict[str, Any] | None:
     if not selected_run:
         return None
 
@@ -1774,6 +2054,118 @@ def readout_item(label: str, value: str) -> html.Div:
         ],
         className="orbit-readout-item",
     )
+
+
+def build_comparison_trajectory_figure(
+    artifact: dict[str, Any] | None,
+    *,
+    exaggeration_factor: float,
+    show_earth: bool,
+) -> go.Figure:
+    if not artifact:
+        return empty_figure("No comparison run selected")
+
+    artifact_path = Path(artifact.get("_artifact_path", artifact.get("run_name", "run")))
+    states = artifact.get("states_m_s", [])
+    times = artifact.get("times_s", [])
+    central_body_parameters = artifact.get("parameters", {}).get("central_body", {})
+    force_parameters = artifact.get("parameters", {}).get("forces", {})
+    reference_vectors_m = artifact.get("metadata", {}).get("reference_vectors_m", {})
+    reference_vector_tracks_m = artifact.get("metadata", {}).get("reference_vector_tracks_m", {})
+
+    figure = trajectory_figure(
+        artifact_path,
+        states,
+        times,
+        0,
+        exaggeration_factor,
+        artifact.get("central_body", "Earth"),
+        float(central_body_parameters.get("mu_m3_s2", 0.0)),
+        float(central_body_parameters.get("radius_m", 0.0)),
+        bool(force_parameters.get("j2", False)),
+        show_earth,
+        reference_vectors_m,
+        reference_vector_tracks_m,
+        show_current_marker=False,
+    )
+    figure.update_layout(
+        title={
+            "text": f"<b>{artifact.get('run_name', artifact_path.stem)} | 3D Trajectory</b>",
+            "x": 0.02,
+            "font": TITLE_FONT,
+        }
+    )
+    return figure
+
+
+def build_comparison_orbital_elements_figure(
+    artifact: dict[str, Any] | None,
+) -> go.Figure:
+    if not artifact:
+        return empty_figure("No comparison run selected")
+
+    times = artifact.get("times_s", [])
+    derived_series = compute_fallback_derived_series(artifact)
+    derived_series.update(artifact.get("derived_series", {}))
+    figure = orbital_elements_figure(times, derived_series)
+    artifact_path = Path(artifact.get("_artifact_path", artifact.get("run_name", "run")))
+    figure.update_layout(
+        title={
+            "text": f"<b>{artifact.get('run_name', artifact_path.stem)} | Orbital Elements</b>",
+            "x": 0.02,
+            "font": TITLE_FONT,
+        }
+    )
+    return figure
+
+
+def build_comparison_perturbations_figure(
+    artifact: dict[str, Any] | None,
+) -> go.Figure:
+    if not artifact:
+        return empty_figure("No comparison run selected")
+
+    times = artifact.get("times_s", [])
+    figure = force_components_figure(
+        times,
+        artifact.get("accelerations_by_force_m_s2", {}),
+    )
+    artifact_path = Path(artifact.get("_artifact_path", artifact.get("run_name", "run")))
+    figure.update_layout(
+        title={
+            "text": f"<b>{artifact.get('run_name', artifact_path.stem)} | Perturbations</b>",
+            "x": 0.02,
+            "font": TITLE_FONT,
+        }
+    )
+    return figure
+
+
+def build_comparison_altitude_figure(
+    artifact: dict[str, Any] | None,
+) -> go.Figure:
+    if not artifact:
+        return empty_figure("No comparison run selected")
+
+    times = artifact.get("times_s", [])
+    derived_series = compute_fallback_derived_series(artifact)
+    derived_series.update(artifact.get("derived_series", {}))
+    figure = line_figure(
+        times,
+        derived_series.get("altitude_m", []),
+        title="Altitude",
+        yaxis_title="Altitude [m]",
+        color="#7895d4",
+    )
+    artifact_path = Path(artifact.get("_artifact_path", artifact.get("run_name", "run")))
+    figure.update_layout(
+        title={
+            "text": f"<b>{artifact.get('run_name', artifact_path.stem)} | Altitude</b>",
+            "x": 0.02,
+            "font": TITLE_FONT,
+        }
+    )
+    return figure
 
 
 @app.callback(
@@ -2062,6 +2454,48 @@ def update_static_diagnostics(
         orbital_elements,
         json.dumps(artifact, indent=2),
         summary,
+    )
+
+
+@app.callback(
+    Output("compare-left-trajectory-graph", "figure"),
+    Output("compare-right-trajectory-graph", "figure"),
+    Output("compare-left-perturbations-graph", "figure"),
+    Output("compare-right-perturbations-graph", "figure"),
+    Output("compare-left-altitude-graph", "figure"),
+    Output("compare-right-altitude-graph", "figure"),
+    Output("compare-left-orbital-elements-graph", "figure"),
+    Output("compare-right-orbital-elements-graph", "figure"),
+    Input("compare-left-artifact-store", "data"),
+    Input("compare-right-artifact-store", "data"),
+    Input("compare-exaggeration-factor-input", "value"),
+    Input("compare-show-earth-input", "value"),
+)
+def update_comparison_panel(
+    left_artifact: dict[str, Any] | None,
+    right_artifact: dict[str, Any] | None,
+    exaggeration_factor: float | None,
+    show_earth_values: list[str] | None,
+) -> tuple[go.Figure, go.Figure, go.Figure, go.Figure, go.Figure, go.Figure, go.Figure, go.Figure]:
+    safe_exaggeration = float(exaggeration_factor or 1.0)
+    show_earth = bool(show_earth_values and "show_earth" in show_earth_values)
+    return (
+        build_comparison_trajectory_figure(
+            left_artifact,
+            exaggeration_factor=safe_exaggeration,
+            show_earth=show_earth,
+        ),
+        build_comparison_trajectory_figure(
+            right_artifact,
+            exaggeration_factor=safe_exaggeration,
+            show_earth=show_earth,
+        ),
+        build_comparison_perturbations_figure(left_artifact),
+        build_comparison_perturbations_figure(right_artifact),
+        build_comparison_altitude_figure(left_artifact),
+        build_comparison_altitude_figure(right_artifact),
+        build_comparison_orbital_elements_figure(left_artifact),
+        build_comparison_orbital_elements_figure(right_artifact),
     )
 
 
