@@ -79,6 +79,8 @@ def launch_simulation_from_ui(
     samples_per_orbit: int,
     start_epoch_utc: str,
     integrator_backend: str,
+    integrator_method: str,
+    max_step_s: float | None,
     mass_kg: float,
     cross_section_area_m2: float,
     drag_coefficient: float,
@@ -156,6 +158,8 @@ def launch_simulation_from_ui(
         ),
         integrator=IntegratorConfig(
             backend=integrator_backend,
+            method=integrator_method,
+            max_step_s=max_step_s,
         ),
         spacecraft=SpacecraftConfig(
             mass_kg=mass_kg,

@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
@@ -26,6 +28,7 @@ from orbital_propagator.forces.drag import PYMSIS_AVAILABLE
 from orbital_propagator.propagation.dynamics import evaluate_accelerations
 from orbital_propagator.io.artifacts import build_run_artifact, save_run_artifact
 from orbital_propagator.propagation.orbital_elements import compute_derived_series
+from orbital_propagator.propagation.integrators import integrate_states
 from orbital_propagator.propagation.runner import run_simulation
 
 
@@ -86,6 +89,32 @@ def classical_elements_from_state(
 
 
 class TwoBodyRunnerTests(unittest.TestCase):
+    def test_scipy_dop853_uses_optional_maximum_step(self) -> None:
+        times_s = np.array([0.0, 10.0])
+        initial_state = np.array([1.0, 0.0])
+        solution = SimpleNamespace(success=True, y=np.column_stack((initial_state, initial_state)))
+
+        with patch("orbital_propagator.propagation.integrators.solve_ivp", return_value=solution) as solver:
+            states = integrate_states(
+                lambda _time_s, state: state,
+                initial_state,
+                times_s,
+                IntegratorConfig(backend="scipy", method="DOP853", max_step_s=2.5),
+            )
+
+        self.assertEqual(states.shape, (2, 2))
+        self.assertEqual(solver.call_args.kwargs["method"], "DOP853")
+        self.assertEqual(solver.call_args.kwargs["max_step"], 2.5)
+
+    def test_scipy_rejects_non_positive_maximum_step(self) -> None:
+        with self.assertRaisesRegex(ValueError, "max_step_s"):
+            integrate_states(
+                lambda _time_s, state: state,
+                np.array([1.0, 0.0]),
+                np.array([0.0, 10.0]),
+                IntegratorConfig(backend="scipy", max_step_s=0.0),
+            )
+
     def test_force_magnitudes_match_expected_orders_in_leo(self) -> None:
         state = circular_orbit_state(EARTH, altitude_m=500_000.0, inclination_deg=63.4)
         spacecraft = SpacecraftConfig(

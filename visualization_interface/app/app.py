@@ -1180,7 +1180,7 @@ app.layout = html.Div(
                         html.Div(
                             className="control-group",
                             children=[
-                                html.Label("Integrator", className="control-label"),
+                                html.Label("Integrator Backend", className="control-label"),
                                 dcc.Dropdown(
                                     id="integrator-backend-input",
                                     options=[
@@ -1190,6 +1190,34 @@ app.layout = html.Div(
                                     ],
                                     value="auto",
                                     clearable=False,
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            className="control-group",
+                            children=[
+                                html.Label("Integrator Method", className="control-label"),
+                                dcc.Dropdown(
+                                    id="integrator-method-input",
+                                    options=[
+                                        {"label": "DOP853 (recommended)", "value": "DOP853"},
+                                        {"label": "RK45", "value": "RK45"},
+                                    ],
+                                    value="DOP853",
+                                    clearable=False,
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            className="control-group",
+                            children=[
+                                html.Label("Maximum Step [s]", className="control-label"),
+                                dcc.Input(
+                                    id="max-step-input",
+                                    type="number",
+                                    min=0.001,
+                                    placeholder="Adaptive (no cap)",
+                                    className="control-input",
                                 ),
                             ],
                         ),
@@ -1908,6 +1936,8 @@ def advance_animation_frame(
     State("drag-coefficient-input", "value"),
     State("reflectivity-input", "value"),
     State("integrator-backend-input", "value"),
+    State("integrator-method-input", "value"),
+    State("max-step-input", "value"),
     State("atmosphere-model-input", "value"),
     State("atmosphere-options-input", "value"),
     State("force-selection-input", "value"),
@@ -1935,6 +1965,8 @@ def manage_runs(
     drag_coefficient: float | None,
     reflectivity_coefficient: float | None,
     integrator_backend: str | None,
+    integrator_method: str | None,
+    max_step_s: float | None,
     atmosphere_model: str | None,
     atmosphere_options: list[str] | None,
     selected_forces: list[str] | None,
@@ -1976,6 +2008,8 @@ def manage_runs(
                 duration_s=float(duration_s),
                 samples_per_orbit=int(samples_per_orbit),
                 integrator_backend=integrator_backend or "auto",
+                integrator_method=integrator_method or "DOP853",
+                max_step_s=float(max_step_s) if max_step_s is not None else None,
                 mass_kg=float(mass_kg or 1000.0),
                 cross_section_area_m2=float(area_m2 or 10.0),
                 drag_coefficient=float(drag_coefficient or 2.2),

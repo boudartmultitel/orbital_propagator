@@ -20,9 +20,10 @@ class CentralBodyConfig:
 @dataclass(frozen=True)
 class IntegratorConfig:
     backend: str = "auto"
-    method: str = "RK45"
+    method: str = "DOP853"
     rtol: float = 1e-9
     atol: float = 1e-9
+    max_step_s: float | None = None
 
 
 @dataclass(frozen=True)

@@ -44,15 +44,21 @@ def _integrate_with_scipy(
     config: IntegratorConfig,
 ) -> np.ndarray:
     assert solve_ivp is not None
-    solution = solve_ivp(
-        fun=derivative,
-        t_span=(float(times_s[0]), float(times_s[-1])),
-        y0=initial_state_m_s,
-        t_eval=times_s,
-        method=config.method,
-        rtol=config.rtol,
-        atol=config.atol,
-    )
+    options: dict[str, object] = {
+        "fun": derivative,
+        "t_span": (float(times_s[0]), float(times_s[-1])),
+        "y0": initial_state_m_s,
+        "t_eval": times_s,
+        "method": config.method,
+        "rtol": config.rtol,
+        "atol": config.atol,
+    }
+    if config.max_step_s is not None:
+        if config.max_step_s <= 0.0:
+            raise ValueError("max_step_s must be strictly positive when provided.")
+        options["max_step"] = float(config.max_step_s)
+
+    solution = solve_ivp(**options)
     if not solution.success:
         raise RuntimeError(f"Integration failed: {solution.message}")
     return solution.y.T

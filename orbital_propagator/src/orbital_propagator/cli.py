@@ -120,8 +120,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--integrator-method",
-        default="RK45",
+        default="DOP853",
         help="SciPy solve_ivp method to use when the scipy backend is active.",
+    )
+    parser.add_argument(
+        "--max-step-s",
+        type=float,
+        default=None,
+        help=(
+            "Optional maximum internal SciPy integration step in seconds. "
+            "Leave unset to use tolerance-driven adaptive steps only."
+        ),
     )
     parser.add_argument(
         "--rtol",
@@ -237,6 +246,7 @@ def main() -> None:
             method=args.integrator_method,
             rtol=args.rtol,
             atol=args.atol,
+            max_step_s=args.max_step_s,
         ),
         spacecraft=SpacecraftConfig(
             mass_kg=args.mass_kg,
