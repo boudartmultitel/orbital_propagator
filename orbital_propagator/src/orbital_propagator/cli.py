@@ -56,6 +56,15 @@ def parse_args() -> argparse.Namespace:
         help="Number of stored samples including the initial state.",
     )
     parser.add_argument(
+        "--force-breakdown",
+        "--force_breakdown",
+        action="store_true",
+        help=(
+            "Include total and per-force acceleration vectors in the JSON artifact. "
+            "The default artifact contains state vectors only."
+        ),
+    )
+    parser.add_argument(
         "--orbit-definition",
         choices=("circular", "keplerian"),
         default="circular",
@@ -247,7 +256,11 @@ def main() -> None:
         ),
     )
     result = run_simulation(request)
-    artifact = build_run_artifact(request, result)
+    artifact = build_run_artifact(
+        request,
+        result,
+        force_breakdown=args.force_breakdown,
+    )
     save_run_artifact(artifact, args.output)
     print(f"Wrote run artifact to {args.output}")
 

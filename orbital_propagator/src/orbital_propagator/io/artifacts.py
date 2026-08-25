@@ -13,7 +13,7 @@ from orbital_propagator.config import SimulationRequest
 from orbital_propagator.propagation.runner import SimulationResult
 
 
-SCHEMA_VERSION = "0.4.0"
+SCHEMA_VERSION = "0.5.0"
 
 
 def _rounded_list(array: np.ndarray, decimals: int = 9) -> list[Any]:
@@ -23,6 +23,8 @@ def _rounded_list(array: np.ndarray, decimals: int = 9) -> list[Any]:
 def build_run_artifact(
     request: SimulationRequest,
     result: SimulationResult,
+    *,
+    force_breakdown: bool = False,
 ) -> dict[str, Any]:
     metadata = dict(result.metadata)
     if "reference_vectors_m" in metadata:
@@ -58,8 +60,9 @@ def build_run_artifact(
         ),
     }
 
-    return {
+    artifact = {
         "schema_version": SCHEMA_VERSION,
+        "output_type": "force_breakdown" if force_breakdown else "state_vector",
         "run_id": str(uuid4()),
         "run_name": request.run_name,
         "producer": request.producer,
@@ -80,16 +83,21 @@ def build_run_artifact(
         "metadata": metadata,
         "times_s": _rounded_list(result.times_s),
         "states_m_s": _rounded_list(result.states_m_s),
-        "accelerations_total_m_s2": _rounded_list(result.accelerations_total_m_s2),
-        "accelerations_by_force_m_s2": {
-            force_name: _rounded_list(values)
-            for force_name, values in result.accelerations_by_force_m_s2.items()
-        },
         "derived_series": {
             name: _rounded_list(values)
             for name, values in result.derived_series.items()
         },
     }
+    if force_breakdown:
+        artifact["accelerations_total_m_s2"] = _rounded_list(
+            result.accelerations_total_m_s2
+        )
+        artifact["accelerations_by_force_m_s2"] = {
+            force_name: _rounded_list(values)
+            for force_name, values in result.accelerations_by_force_m_s2.items()
+        }
+
+    return artifact
 
 
 def save_run_artifact(artifact: dict[str, Any], output_path: Path) -> None:

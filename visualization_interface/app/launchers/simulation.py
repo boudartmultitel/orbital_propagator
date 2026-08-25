@@ -175,6 +175,8 @@ def launch_simulation_from_ui(
         ),
     )
     result = run_simulation(request)
-    artifact = build_run_artifact(request, result)
+    # The dashboard displays acceleration diagnostics, so its artifacts need
+    # the optional force-component time series.
+    artifact = build_run_artifact(request, result, force_breakdown=True)
     save_run_artifact(artifact, output_path)
     return output_path

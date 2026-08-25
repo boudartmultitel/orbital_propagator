@@ -151,7 +151,7 @@ class TwoBodyRunnerTests(unittest.TestCase):
 
         self.assertLess(energy_span, 5_000.0)
 
-    def test_artifact_save_round_trip_contains_expected_keys(self) -> None:
+    def test_state_vector_artifact_is_the_default_output(self) -> None:
         request = SimulationRequest(
             run_name="artifact_check",
             producer="simulation",
@@ -174,9 +174,36 @@ class TwoBodyRunnerTests(unittest.TestCase):
 
         self.assertEqual(loaded["run_name"], "artifact_check")
         self.assertEqual(loaded["central_body"], "Earth")
+        self.assertEqual(loaded["output_type"], "state_vector")
         self.assertIn("states_m_s", loaded)
         self.assertIn("derived_series", loaded)
+        self.assertNotIn("accelerations_total_m_s2", loaded)
+        self.assertNotIn("accelerations_by_force_m_s2", loaded)
         self.assertEqual(len(loaded["times_s"]), 21)
+
+    def test_force_breakdown_artifact_contains_total_and_named_accelerations(self) -> None:
+        request = SimulationRequest(
+            run_name="force_breakdown_check",
+            producer="simulation",
+            central_body=EARTH,
+            initial_state_m_s=circular_orbit_state(EARTH, altitude_m=400_000.0),
+            propagation=PropagationConfig(duration_s=600.0, sample_count=21),
+            integrator=IntegratorConfig(backend="rk4"),
+            spacecraft=SpacecraftConfig(),
+            forces=ForceModelConfig(j2=True),
+        )
+        result = run_simulation(request)
+        artifact = build_run_artifact(request, result, force_breakdown=True)
+
+        self.assertEqual(artifact["output_type"], "force_breakdown")
+        self.assertIn("states_m_s", artifact)
+        self.assertIn("accelerations_total_m_s2", artifact)
+        self.assertIn("accelerations_by_force_m_s2", artifact)
+        self.assertEqual(
+            set(artifact["accelerations_by_force_m_s2"]),
+            {"central_gravity", "j2"},
+        )
+        self.assertEqual(len(artifact["accelerations_total_m_s2"]), 21)
 
     def test_j2_run_changes_raan_for_inclined_orbit(self) -> None:
         altitude_m = 500_000.0
