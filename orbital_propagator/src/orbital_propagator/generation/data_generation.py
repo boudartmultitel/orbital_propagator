@@ -14,6 +14,26 @@ class DataGeneration:
                  raan_deg: float = 0.0,
                  true_anomaly_deg: float = 0.0,
                  argument_of_periapsis_deg: float = 0.0,
+                 run_name: str = "two_body_earth",
+                 duration_s: float = 5400.0,
+                 sample_count: int = 181,
+                 start_epoch_utc: str = "2026-01-01T00:00:00Z",
+                 integrator_backend: str = "auto",
+                 integrator_method: str = "DOP853",
+                 rtol: float = 1e-9,
+                 atol: float = 1e-9,
+                 max_step_s: float = None,
+                 enable_j2: bool = False,
+                 enable_drag: bool = False,
+                 atmosphere_model: str = "piecewise_exponential",
+                 disable_atmosphere_corotation: bool = False,
+                 enable_srp: bool = False,
+                 enable_third_body_sun: bool = False,
+                 enable_third_body_moon: bool = False,
+                 mass_kg: float = 1000.0,
+                 cross_section_area_m2: float = 10.0,
+                 drag_coefficient: float = 2.2,
+                 reflectivity_coefficient: float = 1.2,
                  ):
         self.orbit_type = orbit_type
         self.central_body = central_body
@@ -24,6 +44,26 @@ class DataGeneration:
         self.raan_deg = raan_deg
         self.true_anomaly_deg = true_anomaly_deg
         self.argument_of_periapsis_deg = argument_of_periapsis_deg
+        self.run_name = run_name
+        self.duration_s = duration_s
+        self.sample_count = sample_count
+        self.start_epoch_utc = start_epoch_utc
+        self.integrator_backend = integrator_backend
+        self.integrator_method = integrator_method
+        self.rtol = rtol
+        self.atol = atol
+        self.max_step_s = max_step_s
+        self.enable_j2 = enable_j2
+        self.enable_drag = enable_drag
+        self.atmosphere_model = atmosphere_model
+        self.disable_atmosphere_corotation = disable_atmosphere_corotation
+        self.enable_srp = enable_srp
+        self.enable_third_body_sun = enable_third_body_sun
+        self.enable_third_body_moon = enable_third_body_moon
+        self.mass_kg = mass_kg
+        self.cross_section_area_m2 = cross_section_area_m2
+        self.drag_coefficient = drag_coefficient
+        self.reflectivity_coefficient = reflectivity_coefficient
         self.initial_state_m_s = self.get_initial_state_m_s()
 
     def get_initial_state_m_s(self):
@@ -66,39 +106,40 @@ class DataGeneration:
 
     def get_simulation_request(self):
         request = SimulationRequest(
-            run_name=args.run_name,
+            run_name=self.run_name,
             producer="simulation",
             central_body=EARTH,
-            initial_state_m_s=self.get,
+            initial_state_m_s=self.initial_state_m_s,
             propagation=PropagationConfig(
-                duration_s=args.duration_s,
-                sample_count=args.sample_count,
-                start_epoch_utc=args.start_epoch_utc,
+                duration_s=self.duration_s,
+                sample_count=self.sample_count,
+                start_epoch_utc=self.start_epoch_utc,
             ),
             integrator=IntegratorConfig(
-                backend=args.integrator_backend,
-                method=args.integrator_method,
-                rtol=args.rtol,
-                atol=args.atol,
-                max_step_s=args.max_step_s,
+                backend=self.integrator_backend,
+                method=self.integrator_method,
+                rtol=self.rtol,
+                atol=self.atol,
+                max_step_s=self.max_step_s,
             ),
             spacecraft=SpacecraftConfig(
-                mass_kg=args.mass_kg,
-                cross_section_area_m2=args.cross_section_area_m2,
-                drag_coefficient=args.drag_coefficient,
-                reflectivity_coefficient=args.reflectivity_coefficient,
+                mass_kg=self.mass_kg,
+                cross_section_area_m2=self.cross_section_area_m2,
+                drag_coefficient=self.drag_coefficient,
+                reflectivity_coefficient=self.reflectivity_coefficient,
             ),
             forces=ForceModelConfig(
                 central_gravity=True,
-                j2=args.enable_j2,
-                drag=args.enable_drag,
-                atmosphere_model=args.atmosphere_model,
-                corotating_atmosphere=not args.disable_atmosphere_corotation,
-                solar_radiation_pressure=args.enable_srp,
-                third_body_sun=args.enable_third_body_sun,
-                third_body_moon=args.enable_third_body_moon,
+                j2=self.enable_j2,
+                drag=self.enable_drag,
+                atmosphere_model=self.atmosphere_model,
+                corotating_atmosphere=not self.disable_atmosphere_corotation,
+                solar_radiation_pressure=self.enable_srp,
+                third_body_sun=self.enable_third_body_sun,
+                third_body_moon=self.enable_third_body_moon,
             ),
-    )
+        )
+        return request
 
 
 
@@ -113,3 +154,4 @@ if __name__ == "__main__":
                  true_anomaly_deg = 0.0,
                  argument_of_periapsis_deg = 0.0)
     print(data.get_initial_state_m_s())
+    print(data.get_simulation_request())
