@@ -1,6 +1,10 @@
+from pathlib import Path
+
 from orbital_propagator.bodies.earth import EARTH
 from orbital_propagator.config import circular_orbit_state, keplerian_orbit_state, SimulationRequest, IntegratorConfig, \
     SpacecraftConfig, ForceModelConfig, PropagationConfig
+from orbital_propagator.io.artifacts import build_run_artifact, save_run_artifact
+from orbital_propagator.propagation.runner import run_simulation
 
 
 class DataGeneration:
@@ -34,6 +38,8 @@ class DataGeneration:
                  cross_section_area_m2: float = 10.0,
                  drag_coefficient: float = 2.2,
                  reflectivity_coefficient: float = 1.2,
+                 force_breakdown: bool = False,
+                 output: str = "./generated_data.json"
                  ):
         self.orbit_type = orbit_type
         self.central_body = central_body
@@ -64,6 +70,8 @@ class DataGeneration:
         self.cross_section_area_m2 = cross_section_area_m2
         self.drag_coefficient = drag_coefficient
         self.reflectivity_coefficient = reflectivity_coefficient
+        self.force_breakdown = force_breakdown
+        self.output = Path(output)
         self.initial_state_m_s = self.get_initial_state_m_s()
 
     def get_initial_state_m_s(self):
@@ -141,6 +149,25 @@ class DataGeneration:
         )
         return request
 
+    def get_simulation_response(self, request):
+        result = run_simulation(request)
+        return result
+
+    def get_artifact(self):
+        request = self.get_simulation_request()
+        artifact = build_run_artifact(
+            request,
+            self.get_simulation_response(request),
+            force_breakdown=self.force_breakdown,
+        )
+        return artifact
+
+    def save_artifact(self, artifact):
+        save_run_artifact(artifact, self.output)
+
+    def simulate(self):
+        self.save_artifact(self.get_artifact())
+
 
 
 if __name__ == "__main__":
@@ -153,5 +180,4 @@ if __name__ == "__main__":
                  raan_deg = 180.0,
                  true_anomaly_deg = 0.0,
                  argument_of_periapsis_deg = 0.0)
-    print(data.get_initial_state_m_s())
-    print(data.get_simulation_request())
+    data.simulate()
