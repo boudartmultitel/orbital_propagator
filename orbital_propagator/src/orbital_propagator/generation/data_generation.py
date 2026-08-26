@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import numpy as np
+
 from orbital_propagator.bodies.earth import EARTH
 from orbital_propagator.config import circular_orbit_state, keplerian_orbit_state, SimulationRequest, IntegratorConfig, \
     SpacecraftConfig, ForceModelConfig, PropagationConfig
@@ -168,7 +170,27 @@ class DataGeneration:
     def simulate(self):
         self.save_artifact(self.get_artifact())
 
+class BulkGenration:
+    def __init__(self, orbit_type, altitude_range: tuple[int, int], semimajor_axis_range: tuple[int, int]):
+        self.orbit_type = orbit_type
+        self.altitude_range = altitude_range
+        self.semimajor_axis_range = semimajor_axis_range
 
+
+    def bulk_genrate(self):
+        for i in range(self.altitude_range[0], self.altitude_range[1]+1):
+            for j in range(self.semimajor_axis_range[0], self.semimajor_axis_range[1]+1):
+                data = DataGeneration(orbit_type="circular",
+                                          central_body="earth",
+                                          altitude_m=i,
+                                          semimajor_axis_m=j,
+                                          eccentricity=0.8,
+                                          inclination_deg=170,
+                                          raan_deg=180.0,
+                                          true_anomaly_deg=0.0,
+                                          argument_of_periapsis_deg=0.0,
+                                      output=f"./data/{i}_{j}.json")
+                data.simulate()
 
 if __name__ == "__main__":
     data = DataGeneration(orbit_type = "circular",
@@ -181,3 +203,5 @@ if __name__ == "__main__":
                  true_anomaly_deg = 0.0,
                  argument_of_periapsis_deg = 0.0)
     data.simulate()
+    bulk = BulkGenration(orbit_type="circular",altitude_range=(200000, 200010),semimajor_axis_range=(200000, 200010))
+    bulk.bulk_genrate()
