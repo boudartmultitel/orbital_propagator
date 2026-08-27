@@ -1,0 +1,6 @@
+[core]
+    remote = hf-bucket
+['remote "hf-bucket"']
+    url = s3://TReC26-Project-2/trajectories-data/dvc-store
+    endpointurl = https://s3.hf.co/TReC26-Project-2
+    region = us-east-1

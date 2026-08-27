@@ -35,3 +35,20 @@ services:
     command:
       - python
       - app/app.py
+
+  dvc:
+    build:
+      context: ./visualization_interface
+      args:
+        HOST_UID: ${HOST_UID}
+        HOST_GID: ${HOST_GID}
+    working_dir: /repo
+    user: "${HOST_UID}:${HOST_GID}"
+    entrypoint:
+      - dvc
+    volumes:
+      - ./:/repo
+    env_file:
+      - .env.dvc
+    profiles:
+      - tools

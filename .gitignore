@@ -39,4 +39,9 @@ Thumbs.db
 results/*
 !results/.gitkeep
 
+# AWS and S3 credentials
+.env.dvc
+
+# User and group specific files
+.env
 data/
