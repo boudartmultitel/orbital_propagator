@@ -44,4 +44,4 @@ results/*
 
 # User and group specific files
 .env
-data/
+#data/
