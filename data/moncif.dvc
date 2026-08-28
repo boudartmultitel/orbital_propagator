@@ -1,0 +1,6 @@
+outs:
+- md5: f0f9c41d3b212b42c1c546bb5ca92d83.dir
+  size: 867802
+  nfiles: 12
+  hash: md5
+  path: moncif
