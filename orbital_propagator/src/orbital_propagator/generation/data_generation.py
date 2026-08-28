@@ -29,6 +29,7 @@ def custom_range(custom: tuple[str, float | int, float | int, float | int]) -> I
         yield start + i * step
 
 class DataGeneration:
+    #TODO starting point start_epoch_utc
     def __init__(self,
                  orbit_type: str,
                  central_body: str,
@@ -209,6 +210,7 @@ class BulkGenration:
         self.argument_of_periapsis_deg = argument_of_periapsis_deg
 
     def bulk_genrate(self):
+        #TODO constraints on generation
         for i in custom_range(self.altitude_range):
             for j in custom_range(self.semimajor_axis_range):
                 for k in custom_range(self.eccentricity):
