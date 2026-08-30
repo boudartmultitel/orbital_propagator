@@ -99,6 +99,86 @@ The generated JSON artifact is also saved in [results](./results).
 - The `results/` folder is now part of the repository workspace, so you can inspect or delete JSON outputs directly.
 - If you use `pymsis`, the container must have the required dependency data available at runtime.
 
+## Unified Data-Generation Configuration
+
+Dataset parameter definitions live in the single packaged file
+`orbital_propagator/src/orbital_propagator/configs/data_generation.yaml`. It
+groups fixed planet and third-body catalogs, spacecraft priors, orbit-family
+priors, derived environment rules, dataset recipes, and export defaults.
+
+Central bodies remain propagator-native `CentralBodyConfig` objects. The
+adapter in `orbital_propagator/bodies/catalog.py` converts the catalog's
+explicit kilometer units to the SI units used by the numerical core. Fixed
+planet constants and their provenance links are recorded in the unified YAML.
+Mercury and Venus J2 remain null because no directly compatible authoritative
+unnormalized value was adopted; requesting J2 for either body fails clearly.
+
+Only Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, and Neptune may be
+central bodies. The Moon is absent from that catalog but remains available as
+an Earth-only perturbing third body. Drag is initially Earth-only, and solar
+radiation pressure uses the catalog heliocentric distance with inverse-square
+scaling. Orbit-family conversion and prior sampling are handled by the Phase 7
+sampler.
+
+Sample one complete recipe parameter object with a seeded NumPy generator:
+
+```python
+import numpy as np
+
+from orbital_propagator.generation.sampling import sample_generation_parameters
+
+sample = sample_generation_parameters(
+    "multi_planet_two_body",
+    np.random.default_rng(42),
+)
+```
+
+The returned dictionary includes the selected planet and orbit family,
+physical orbital elements, enabled third bodies, force switches, all sampled
+spacecraft inputs (`C_D`, `C_R`, and `A_over_m`), and the derived `gamma_D` and
+`gamma_R` coefficients.
+
+## Build A Trajectory Dataset From A Manifest
+
+The manifest is a JSON Lines file: every non-empty line is one fully specified
+trajectory. Parameters are sampled and validated before any new lines are
+appended.
+
+Create or extend a manifest reproducibly:
+
+```bash
+docker compose run --rm orbital_propagator manifest recipes
+
+docker compose run --rm orbital_propagator manifest append \
+  --manifest /shared/data/manifests/two_body.jsonl \
+  --recipe multi_planet_two_body \
+  --count 100 \
+  --seed 42 \
+  --duration-s 5400 \
+  --sample-count 181
+```
+
+Validate an edited or generated manifest without propagating it:
+
+```bash
+docker compose run --rm orbital_propagator manifest validate \
+  --manifest /shared/data/manifests/two_body.jsonl
+```
+
+Execute every trajectory and retain per-force acceleration arrays:
+
+```bash
+docker compose run --rm orbital_propagator manifest build \
+  --manifest /shared/data/manifests/two_body.jsonl \
+  --output-dir /shared/data/datasets/two_body
+```
+
+Use `--skip-existing` on `manifest build` to resume an interrupted build. Use
+`manifest --help`, `manifest append --help`, or `manifest build --help` for the
+complete command reference. The host files appear under `data/manifests/` and
+`data/datasets/`. Commit the small manifest to Git for reproducibility and
+version the generated dataset directory with DVC.
+
 ## Interface Preview
 
 <img src="./utils/layout_interface_v3.png" alt="Visualization interface layout" width="100%" />

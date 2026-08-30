@@ -5,7 +5,11 @@ from typing import Any
 
 import numpy as np
 
-from orbital_propagator.ephemerides.provider import ephemeris_source_name, body_position_m
+from orbital_propagator.ephemerides.provider import (
+    body_position_m,
+    ephemeris_source_name,
+    sun_position_for_central_body_m,
+)
 from orbital_propagator.config import SimulationRequest
 from orbital_propagator.propagation.dynamics import evaluate_accelerations, state_derivative
 from orbital_propagator.propagation.integrators import integrate_states
@@ -49,7 +53,19 @@ def _reference_vector_tracks(
         sampled_times_s = times_s[track_indices] + float(request.propagation.start_time_s)
         sampled_vectors_m = np.array(
             [
-                body_position_m(body_name, request.propagation.start_epoch_utc, elapsed_time_s)
+                (
+                    sun_position_for_central_body_m(
+                        request.propagation.start_epoch_utc,
+                        elapsed_time_s,
+                        request.central_body.heliocentric_distance_au,
+                    )
+                    if body_name == "sun"
+                    else body_position_m(
+                        body_name,
+                        request.propagation.start_epoch_utc,
+                        elapsed_time_s,
+                    )
+                )
                 for elapsed_time_s in sampled_times_s
             ],
             dtype=float,

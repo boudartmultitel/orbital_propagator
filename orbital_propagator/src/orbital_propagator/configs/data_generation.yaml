@@ -1,0 +1,269 @@
+schema_version: "0.1"
+
+# Category 1: fixed physical values. These values are catalog entries and are
+# never sampled continuously. J2 remains null where no directly compatible,
+# authoritative unnormalized coefficient was adopted.
+fixed_parameters:
+  central_bodies:
+    mercury:
+      name: Mercury
+      mu_km3_s2: 22031.868551
+      radius_km: 2440.53
+      J2: null
+      rotation_rate_rad_s: 1.240014173949e-6
+      atmosphere_model: none
+      heliocentric_distance_au: 0.38709927
+    venus:
+      name: Venus
+      mu_km3_s2: 324858.592
+      radius_km: 6051.8
+      J2: null
+      rotation_rate_rad_s: -2.992449420870e-7
+      atmosphere_model: none
+      heliocentric_distance_au: 0.72333566
+    earth:
+      name: Earth
+      mu_km3_s2: 398600.4418
+      radius_km: 6378.1363
+      J2: 1.08262668e-3
+      rotation_rate_rad_s: 7.2921159e-5
+      atmosphere_model: earth
+      heliocentric_distance_au: 1.0
+    mars:
+      name: Mars
+      mu_km3_s2: 42828.37362
+      radius_km: 3396.19
+      J2: 1.96045e-3
+      J2_reference_radius_km: 3396.2
+      rotation_rate_rad_s: 7.088218070007e-5
+      atmosphere_model: none
+      heliocentric_distance_au: 1.52371034
+    jupiter:
+      name: Jupiter
+      mu_km3_s2: 126686531.9
+      radius_km: 71492.0
+      J2: 1.4696572e-2
+      J2_reference_radius_km: 71492.0
+      rotation_rate_rad_s: 1.758532344577e-4
+      atmosphere_model: none
+      heliocentric_distance_au: 5.20288700
+    saturn:
+      name: Saturn
+      mu_km3_s2: 37931206.23
+      radius_km: 60268.0
+      J2: 1.6290573e-2
+      J2_reference_radius_km: 60330.0
+      rotation_rate_rad_s: 1.637849901849e-4
+      atmosphere_model: none
+      heliocentric_distance_au: 9.53667594
+    uranus:
+      name: Uranus
+      mu_km3_s2: 5793951.3
+      radius_km: 25559.0
+      J2: 3.34129e-3
+      J2_reference_radius_km: 26200.0
+      rotation_rate_rad_s: -1.012371955898e-4
+      atmosphere_model: none
+      heliocentric_distance_au: 19.18916464
+    neptune:
+      name: Neptune
+      mu_km3_s2: 6835099.97
+      radius_km: 24764.0
+      J2: 3.409138069414930e-3
+      J2_reference_radius_km: 25225.0
+      rotation_rate_rad_s: 1.093133194383e-4
+      atmosphere_model: none
+      heliocentric_distance_au: 30.06992276
+
+  # Perturbing bodies are deliberately separate from central bodies. The Moon
+  # remains valid for Earth perturbations but is never a central body.
+  third_bodies:
+    sun:
+      enabled_by_default: true
+      mu_km3_s2: 1.32712440018e11
+    moon:
+      enabled_by_default: false
+      enabled_for_central_bodies: [earth]
+      mu_km3_s2: 4902.8695
+
+# Categories 2 and 3: independently sampled spacecraft properties and
+# orbit-family-dependent parameters.
+sampled_parameters:
+  spacecraft_priors:
+    drag_coefficient:
+      symbol: C_D
+      unit: dimensionless
+      range: [2.0, 2.5]
+      distribution: uniform
+    reflectivity_coefficient:
+      symbol: C_R
+      unit: dimensionless
+      range: [1.0, 1.5]
+      distribution: uniform
+    area_to_mass:
+      symbol: A_over_m
+      unit: m2/kg
+      bins:
+        compact: [0.005, 0.03]
+        smallsat: [0.03, 0.20]
+        high_area_to_mass: [0.20, 2.00]
+
+  orbit_families:
+    generic:
+      low_orbit:
+        altitude_over_radius: [0.03, 0.30]
+        eccentricity: [0.0, 0.05]
+        inclination_deg: [0, 120]
+        raan_deg: [0, 360]
+        arg_perigee_deg: [0, 360]
+        true_anomaly_deg: [0, 360]
+        perturbation_focus: [two_body, J2]
+      high_orbit:
+        semi_major_axis_over_radius: [3.0, 8.0]
+        eccentricity: [0.0, 0.30]
+        inclination_deg: [0, 120]
+        raan_deg: [0, 360]
+        arg_perigee_deg: [0, 360]
+        true_anomaly_deg: [0, 360]
+        perturbation_focus: [two_body, J2, third_body, SRP]
+      highly_elliptical:
+        perigee_altitude_over_radius: [0.05, 0.30]
+        apogee_altitude_over_radius: [5.0, 15.0]
+        eccentricity: [0.40, 0.80]
+        inclination_deg: [0, 120]
+        raan_deg: [0, 360]
+        arg_perigee_deg: [0, 360]
+        true_anomaly_deg: [0, 360]
+        perturbation_focus: [two_body, J2, third_body, SRP]
+
+    earth_specific:
+      leo:
+        central_body: earth
+        altitude_km: [300, 2000]
+        eccentricity: [0.0, 0.05]
+        inclination_deg: [0, 120]
+        raan_deg: [0, 360]
+        arg_perigee_deg: [0, 360]
+        true_anomaly_deg: [0, 360]
+        perturbation_focus: [J2, drag]
+      sso:
+        central_body: earth
+        altitude_km: [500, 900]
+        eccentricity: [0.0, 0.02]
+        inclination_deg: [96, 99]
+        raan_deg: [0, 360]
+        arg_perigee_deg: [0, 360]
+        true_anomaly_deg: [0, 360]
+        perturbation_focus: [J2, drag]
+      geo:
+        central_body: earth
+        altitude_km: [35700, 35900]
+        eccentricity: [0.0, 0.005]
+        inclination_deg: [0, 15]
+        raan_deg: [0, 360]
+        arg_perigee_deg: [0, 360]
+        true_anomaly_deg: [0, 360]
+        perturbation_focus: [J2, third_body, SRP]
+      molniya:
+        central_body: earth
+        perigee_altitude_km: [500, 1500]
+        apogee_altitude_km: [38000, 41000]
+        eccentricity: [0.65, 0.75]
+        inclination_deg: [62.5, 64.5]
+        raan_deg: [0, 360]
+        arg_perigee_deg: [250, 290]
+        true_anomaly_deg: [0, 360]
+        perturbation_focus: [J2, drag, third_body, SRP]
+
+# Category 4: quantities computed from fixed and sampled parameters, plus the
+# deliberately limited environment rules used by the first implementation.
+derived_environment:
+  formulas:
+    gamma_D: C_D * A_over_m
+    gamma_R: C_R * A_over_m
+    P_srp: P_srp_1AU / heliocentric_distance_au**2
+  constants:
+    P_srp_1AU_N_m2: 4.56e-6
+  atmosphere_models:
+    none: null
+    earth:
+      implementation: piecewise_exponential
+      density_sea_level_kg_m3: 1.225
+      scale_height_m: 8500.0
+  rules:
+    allowed_central_bodies:
+      [mercury, venus, earth, mars, jupiter, saturn, uranus, neptune]
+    drag_enabled_for_central_bodies: [earth]
+    moon_third_body_enabled_for_central_bodies: [earth]
+    central_body_constants_are_sampled: false
+    fail_on_missing_force_parameters: true
+
+# Recipes select from the four categories above; they do not redefine physical
+# constants or parameter priors.
+dataset_recipes:
+  multi_planet_two_body:
+    dataset_name: multi_planet_two_body
+    task_type: acceleration
+    central_bodies:
+      mercury: 0.10
+      venus: 0.10
+      earth: 0.20
+      mars: 0.15
+      jupiter: 0.15
+      saturn: 0.10
+      uranus: 0.10
+      neptune: 0.10
+    orbit_families:
+      low_orbit: 0.5
+      high_orbit: 0.3
+      highly_elliptical: 0.2
+    third_bodies: {sun: false, moon: false}
+    forces: {two_body: true, J2: false, drag: false, third_body: false, SRP: false}
+
+  multi_planet_j2:
+    dataset_name: multi_planet_j2
+    task_type: acceleration
+    central_bodies:
+      earth: 0.25
+      mars: 0.15
+      jupiter: 0.20
+      saturn: 0.15
+      uranus: 0.10
+      neptune: 0.10
+      venus: 0.05
+    orbit_families:
+      low_orbit: 0.5
+      high_orbit: 0.3
+      highly_elliptical: 0.2
+    third_bodies: {sun: false, moon: false}
+    forces: {two_body: true, J2: true, drag: false, third_body: false, SRP: false}
+
+  earth_full_perturbations:
+    dataset_name: earth_full_perturbations
+    task_type: acceleration
+    central_bodies: {earth: 1.0}
+    orbit_families:
+      leo: 0.30
+      sso: 0.20
+      geo: 0.15
+      molniya: 0.20
+      high_orbit: 0.15
+    third_bodies: {sun: true, moon: true}
+    forces: {two_body: true, J2: true, drag: true, third_body: true, SRP: true}
+
+export:
+  random_seed: 42
+  splits: {train: 0.70, val: 0.15, test: 0.15}
+  format: npz
+  metadata_filename: metadata.json
+
+provenance:
+  radii_and_rotation: https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc
+  mercury_venus_gm: https://ssd.jpl.nasa.gov/astro_par.html
+  planet_gm: https://ssd.jpl.nasa.gov/sats/phys_par/
+  heliocentric_distance: https://ssd.jpl.nasa.gov/planets/approx_pos.html
+  mars_j2: https://ntrs.nasa.gov/api/citations/20240012934/downloads/Mars-GRAM%202024%20User%20Guide.pdf
+  jupiter_j2: https://academic.oup.com/mnras/article/490/1/766/5572489
+  saturn_j2: https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/Cassini/sci-saturn.html
+  uranus_j2: https://doi.org/10.1088/0004-6256/148/5/76
+  neptune_j2: https://www.aanda.org/articles/aa/pdf/2021/10/aa40739-21.pdf

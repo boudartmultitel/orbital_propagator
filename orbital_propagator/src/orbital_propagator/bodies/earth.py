@@ -9,6 +9,8 @@ EARTH = CentralBodyConfig(
     radius_m=6_378_136.3,
     j2=1.08262668e-3,
     rotation_rate_rad_s=7.2921159e-5,
+    atmosphere_model="earth",
+    heliocentric_distance_au=1.0,
     atmosphere_density_sea_level_kg_m3=1.225,
     atmosphere_scale_height_m=8_500.0,
 )

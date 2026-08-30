@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from orbital_propagator.ephemerides.approximate import approximate_body_position_m
+from orbital_propagator.ephemerides.approximate import AU_M, approximate_body_position_m
 
 try:
     from astropy import units as u
@@ -39,3 +39,22 @@ def body_position_m(
         )
 
     return approximate_body_position_m(body, elapsed_s)
+
+
+def sun_position_for_central_body_m(
+    start_epoch_utc: str,
+    elapsed_s: float,
+    heliocentric_distance_au: float | None,
+) -> np.ndarray:
+    """Approximate a planet-to-Sun vector at the catalog mean distance."""
+    if heliocentric_distance_au is None:
+        raise ValueError("Heliocentric distance is required for the Sun position.")
+    earth_to_sun_m = body_position_m("sun", start_epoch_utc, elapsed_s)
+    if heliocentric_distance_au == 1.0:
+        return earth_to_sun_m
+    return (
+        earth_to_sun_m
+        / np.linalg.norm(earth_to_sun_m)
+        * heliocentric_distance_au
+        * AU_M
+    )
