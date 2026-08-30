@@ -45,3 +45,8 @@ results/*
 # User and group specific files
 .env
 #data/
+data/manifests/*
+
+# Agents and logs
+logs/
+AGENTS.md

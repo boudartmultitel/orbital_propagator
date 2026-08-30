@@ -340,12 +340,17 @@ docker compose run --rm dvc pull
 
 ## Generate new data
 
-Run the normal data generation command using the `orbital_propagator` service.
-
-For example:
+Create and execute a versioned trajectory manifest using the
+`orbital_propagator` service. For example:
 
 ```bash
-docker compose run --rm orbital_propagator <arguments>
+docker compose run --rm orbital_propagator manifest append \
+  --manifest /shared/data/manifests/trajectories.jsonl \
+  --recipe multi_planet_two_body --count 100 --seed 42
+
+docker compose run --rm orbital_propagator manifest build \
+  --manifest /shared/data/manifests/trajectories.jsonl \
+  --output-dir /shared/data/datasets/trajectories
 ```
 
 Generated data should be written into the shared project data directories.

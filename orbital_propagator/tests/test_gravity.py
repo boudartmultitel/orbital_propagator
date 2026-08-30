@@ -62,6 +62,26 @@ class GravityForceTests(unittest.TestCase):
         self.assertAlmostEqual(acceleration[1], 0.0, places=20)
         self.assertAlmostEqual(acceleration[2], 0.0, places=20)
 
+    def test_srp_scales_with_inverse_square_heliocentric_distance(self) -> None:
+        kwargs = {
+            "spacecraft_position_m": np.zeros(3),
+            "reflectivity_coefficient": 1.2,
+            "cross_section_area_m2": 20.0,
+            "mass_kg": 1000.0,
+            "solar_pressure_1au_n_m2": 4.56e-6,
+            "astronomical_unit_m": 149_597_870_700.0,
+        }
+        at_one_au = solar_radiation_pressure_acceleration(
+            sun_position_m=np.array([149_597_870_700.0, 0.0, 0.0]), **kwargs
+        )
+        at_two_au = solar_radiation_pressure_acceleration(
+            sun_position_m=np.array([2.0 * 149_597_870_700.0, 0.0, 0.0]), **kwargs
+        )
+
+        self.assertAlmostEqual(
+            np.linalg.norm(at_one_au) / np.linalg.norm(at_two_au), 4.0
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

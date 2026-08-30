@@ -6,6 +6,7 @@ from orbital_propagator.config import (
     CentralBodyConfig,
     ForceModelConfig,
     SpacecraftConfig,
+    validate_force_model,
 )
 from orbital_propagator.ephemerides.approximate import (
     AU_M,
@@ -13,7 +14,10 @@ from orbital_propagator.ephemerides.approximate import (
     SOLAR_RADIATION_PRESSURE_1AU_N_M2,
     SUN_MU_M3_S2,
 )
-from orbital_propagator.ephemerides.provider import body_position_m
+from orbital_propagator.ephemerides.provider import (
+    body_position_m,
+    sun_position_for_central_body_m,
+)
 from orbital_propagator.forces.drag import atmospheric_drag_acceleration
 from orbital_propagator.forces.gravity import central_gravity_acceleration
 from orbital_propagator.forces.j2 import j2_acceleration
@@ -29,6 +33,7 @@ def evaluate_accelerations(
     forces: ForceModelConfig,
     start_epoch_utc: str,
 ) -> dict[str, np.ndarray]:
+    validate_force_model(central_body, forces)
     position_m = state_m_s[:3]
     velocity_m_s = state_m_s[3:]
     accelerations: dict[str, np.ndarray] = {}
@@ -41,7 +46,9 @@ def evaluate_accelerations(
         accelerations["j2"] = j2_acceleration(
             position_m=position_m,
             mu_m3_s2=central_body.mu_m3_s2,
-            equatorial_radius_m=central_body.radius_m,
+            equatorial_radius_m=(
+                central_body.j2_reference_radius_m or central_body.radius_m
+            ),
             j2=central_body.j2,
         )
     if forces.drag:
@@ -61,7 +68,11 @@ def evaluate_accelerations(
             corotating_atmosphere=forces.corotating_atmosphere,
         )
     if forces.third_body_sun or forces.solar_radiation_pressure:
-        sun_position = body_position_m("sun", start_epoch_utc, elapsed_time_s)
+        sun_position = sun_position_for_central_body_m(
+            start_epoch_utc,
+            elapsed_time_s,
+            central_body.heliocentric_distance_au,
+        )
     else:
         sun_position = None
     if forces.third_body_sun and sun_position is not None:

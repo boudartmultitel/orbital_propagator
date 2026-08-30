@@ -10,6 +10,7 @@ services:
     volumes:
       - ./orbital_propagator:/workspace
       - ./results:/shared/results
+      - ./data:/shared/data
     environment:
       RESULTS_DIR: /shared/results
       PYTHONPATH: /workspace/src

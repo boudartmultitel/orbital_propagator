@@ -11,10 +11,13 @@ class CentralBodyConfig:
     name: str
     mu_m3_s2: float
     radius_m: float
-    j2: float = 0.0
+    j2: float | None = None
     rotation_rate_rad_s: float = 0.0
     atmosphere_density_sea_level_kg_m3: float = 0.0
     atmosphere_scale_height_m: float = 1.0
+    atmosphere_model: str = "none"
+    heliocentric_distance_au: float | None = None
+    j2_reference_radius_m: float | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,27 @@ class SimulationRequest:
     integrator: IntegratorConfig
     spacecraft: SpacecraftConfig
     forces: ForceModelConfig
+
+
+def validate_force_model(
+    central_body: CentralBodyConfig,
+    forces: ForceModelConfig,
+) -> None:
+    """Reject force combinations unsupported by the selected central body."""
+    if forces.j2 and central_body.j2 is None:
+        raise ValueError(f"J2 is unavailable for central body {central_body.name}.")
+    if forces.drag and central_body.atmosphere_model == "none":
+        raise ValueError(
+            f"Atmospheric drag is unavailable for central body {central_body.name}."
+        )
+    if forces.third_body_moon and central_body.name.lower() != "earth":
+        raise ValueError("The Moon third-body model is only available for Earth.")
+    if (
+        forces.third_body_sun or forces.solar_radiation_pressure
+    ) and central_body.heliocentric_distance_au is None:
+        raise ValueError(
+            f"Heliocentric distance is required for central body {central_body.name}."
+        )
 
 
 def _validate_orbit_above_surface(

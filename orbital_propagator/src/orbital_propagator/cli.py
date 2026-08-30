@@ -25,7 +25,11 @@ from orbital_propagator.propagation.runner import run_simulation
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run a two-body orbital propagation and save the result artifact."
+        description="Run an orbital propagation and save the result artifact.",
+        epilog=(
+            "For trajectory datasets, run "
+            "'python -m orbital_propagator.cli manifest --help'."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -208,6 +212,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    if sys.argv[1:2] == ["manifest"]:
+        from orbital_propagator.generation.manifest_cli import main as manifest_main
+
+        manifest_main(sys.argv[2:])
+        return
     args = parse_args()
     if args.orbit_definition == "circular":
         initial_state_m_s = circular_orbit_state(
