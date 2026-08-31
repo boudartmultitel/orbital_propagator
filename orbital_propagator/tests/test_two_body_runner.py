@@ -26,6 +26,10 @@ from orbital_propagator.config import (
 )
 from orbital_propagator.forces.drag import PYMSIS_AVAILABLE
 from orbital_propagator.propagation.dynamics import evaluate_accelerations
+from orbital_propagator.generation.features import (
+    build_input_vectors,
+    materialize_input_vectors,
+)
 from orbital_propagator.io.artifacts import build_run_artifact, save_run_artifact
 from orbital_propagator.propagation.orbital_elements import compute_derived_series
 from orbital_propagator.propagation.integrators import integrate_states
@@ -206,6 +210,31 @@ class TwoBodyRunnerTests(unittest.TestCase):
         self.assertEqual(loaded["output_type"], "state_vector")
         self.assertIn("states_m_s", loaded)
         self.assertIn("derived_series", loaded)
+        self.assertEqual(loaded["schema_version"], "0.7.0")
+        self.assertEqual(loaded["input_schema_version"], "0.1.0")
+        self.assertEqual(len(loaded["feature_names"]), 33)
+        self.assertNotIn("inputs", loaded)
+        self.assertEqual(len(loaded["constant_inputs"]), 11)
+        reconstructed_inputs = materialize_input_vectors(loaded)
+        self.assertEqual(reconstructed_inputs.shape, (21, 33))
+        np.testing.assert_allclose(
+            reconstructed_inputs,
+            build_input_vectors(request, result),
+        )
+        self.assertEqual(
+            np.asarray(loaded["environment_series"]["sun_position_m"]).shape,
+            (21, 3),
+        )
+        self.assertEqual(
+            np.asarray(
+                loaded["environment_series"]["atmosphere_velocity_m_s"]
+            ).shape,
+            (21, 3),
+        )
+        self.assertNotIn("srp_visibility", loaded["feature_names"])
+        self.assertEqual(
+            loaded["feature_units"]["P_srp_1AU_N_m2"], "N/m2"
+        )
         self.assertNotIn("accelerations_total_m_s2", loaded)
         self.assertNotIn("accelerations_by_force_m_s2", loaded)
         self.assertEqual(len(loaded["times_s"]), 21)

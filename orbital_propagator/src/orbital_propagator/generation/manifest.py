@@ -289,6 +289,7 @@ def build_manifest_dataset(
         artifact = build_run_artifact(
             request, run_simulation(request), force_breakdown=force_breakdown
         )
+        artifact["run_id"] = record["trajectory_id"]
         artifact["manifest_parameters"] = record
         save_run_artifact(artifact, output_path)
         written.append(output_path)

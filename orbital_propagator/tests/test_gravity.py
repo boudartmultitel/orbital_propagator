@@ -12,7 +12,10 @@ if str(SRC_PATH) not in sys.path:
 
 from orbital_propagator.forces.gravity import central_gravity_acceleration
 from orbital_propagator.forces.j2 import j2_acceleration
-from orbital_propagator.forces.srp import solar_radiation_pressure_acceleration
+from orbital_propagator.forces.srp import (
+    cylindrical_eclipse_visibility,
+    solar_radiation_pressure_acceleration,
+)
 from orbital_propagator.forces.third_body import third_body_point_mass_acceleration
 
 
@@ -81,6 +84,49 @@ class GravityForceTests(unittest.TestCase):
         self.assertAlmostEqual(
             np.linalg.norm(at_one_au) / np.linalg.norm(at_two_au), 4.0
         )
+
+    def test_cylindrical_eclipse_distinguishes_shadow_and_sunlight(self) -> None:
+        sun_position_m = np.array([149_597_870_700.0, 0.0, 0.0])
+        body_radius_m = 6_378_136.3
+
+        self.assertEqual(
+            cylindrical_eclipse_visibility(
+                np.array([-7_000_000.0, 0.0, 0.0]),
+                sun_position_m,
+                body_radius_m,
+            ),
+            0.0,
+        )
+        self.assertEqual(
+            cylindrical_eclipse_visibility(
+                np.array([7_000_000.0, 0.0, 0.0]),
+                sun_position_m,
+                body_radius_m,
+            ),
+            1.0,
+        )
+        self.assertEqual(
+            cylindrical_eclipse_visibility(
+                np.array([-7_000_000.0, 7_000_000.0, 0.0]),
+                sun_position_m,
+                body_radius_m,
+            ),
+            1.0,
+        )
+
+    def test_cylindrical_eclipse_zeroes_srp_acceleration(self) -> None:
+        acceleration = solar_radiation_pressure_acceleration(
+            spacecraft_position_m=np.array([-7_000_000.0, 0.0, 0.0]),
+            sun_position_m=np.array([149_597_870_700.0, 0.0, 0.0]),
+            reflectivity_coefficient=1.2,
+            cross_section_area_m2=20.0,
+            mass_kg=1000.0,
+            solar_pressure_1au_n_m2=4.56e-6,
+            astronomical_unit_m=149_597_870_700.0,
+            visibility=0.0,
+        )
+
+        np.testing.assert_array_equal(acceleration, np.zeros(3))
 
 
 if __name__ == "__main__":

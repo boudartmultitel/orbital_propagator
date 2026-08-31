@@ -10,14 +10,22 @@ from uuid import uuid4
 import numpy as np
 
 from orbital_propagator.config import SimulationRequest
+from orbital_propagator.generation.features import (
+    CONSTANT_FEATURE_NAMES,
+    FEATURE_NAMES,
+    FEATURE_UNITS,
+    INPUT_SCHEMA_VERSION,
+    INPUT_STORAGE_FORMAT,
+    build_constant_inputs,
+)
 from orbital_propagator.propagation.runner import SimulationResult
 
 
-SCHEMA_VERSION = "0.5.0"
+SCHEMA_VERSION = "0.7.0"
 
 
-def _rounded_list(array: np.ndarray, decimals: int = 9) -> list[Any]:
-    return np.round(array, decimals=decimals).tolist()
+def _array_list(array: np.ndarray) -> list[Any]:
+    return np.asarray(array).tolist()
 
 
 def build_run_artifact(
@@ -29,14 +37,14 @@ def build_run_artifact(
     metadata = dict(result.metadata)
     if "reference_vectors_m" in metadata:
         metadata["reference_vectors_m"] = {
-            name: _rounded_list(values)
+            name: _array_list(values)
             for name, values in metadata["reference_vectors_m"].items()
         }
     if "reference_vector_tracks_m" in metadata:
         metadata["reference_vector_tracks_m"] = {
             name: {
-                "times_s": _rounded_list(track["times_s"]),
-                "vectors_m": _rounded_list(track["vectors_m"]),
+                "times_s": _array_list(track["times_s"]),
+                "vectors_m": _array_list(track["vectors_m"]),
             }
             for name, track in metadata["reference_vector_tracks_m"].items()
         }
@@ -77,23 +85,33 @@ def build_run_artifact(
             "forces": asdict(request.forces),
         },
         "initial_conditions": {
-            "state_vector_m_s": _rounded_list(request.initial_state_m_s),
+            "state_vector_m_s": _array_list(request.initial_state_m_s),
         },
         "summary": summary,
         "metadata": metadata,
-        "times_s": _rounded_list(result.times_s),
-        "states_m_s": _rounded_list(result.states_m_s),
+        "times_s": _array_list(result.times_s),
+        "states_m_s": _array_list(result.states_m_s),
+        "input_schema_version": INPUT_SCHEMA_VERSION,
+        "input_storage_format": INPUT_STORAGE_FORMAT,
+        "feature_names": list(FEATURE_NAMES),
+        "feature_units": FEATURE_UNITS,
+        "constant_feature_names": list(CONSTANT_FEATURE_NAMES),
+        "constant_inputs": build_constant_inputs(request),
+        "environment_series": {
+            name: _array_list(values)
+            for name, values in result.environment_series.items()
+        },
         "derived_series": {
-            name: _rounded_list(values)
+            name: _array_list(values)
             for name, values in result.derived_series.items()
         },
     }
     if force_breakdown:
-        artifact["accelerations_total_m_s2"] = _rounded_list(
+        artifact["accelerations_total_m_s2"] = _array_list(
             result.accelerations_total_m_s2
         )
         artifact["accelerations_by_force_m_s2"] = {
-            force_name: _rounded_list(values)
+            force_name: _array_list(values)
             for force_name, values in result.accelerations_by_force_m_s2.items()
         }
 
