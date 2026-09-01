@@ -238,18 +238,54 @@ dataset_recipes:
     third_bodies: {sun: false, moon: false}
     forces: {two_body: true, J2: true, drag: false, third_body: false, SRP: false}
 
-  earth_full_perturbations:
-    dataset_name: earth_full_perturbations
+  earth_j2_drag:
+    dataset_name: earth_j2_drag
     task_type: acceleration
     central_bodies: {earth: 1.0}
     orbit_families:
-      leo: 0.30
-      sso: 0.20
-      geo: 0.15
-      molniya: 0.20
-      high_orbit: 0.15
-    third_bodies: {sun: true, moon: true}
-    forces: {two_body: true, J2: true, drag: true, third_body: true, SRP: true}
+      leo: 0.55
+      sso: 0.25
+      low_orbit: 0.20
+    third_bodies: {sun: false, moon: false}
+    forces: {two_body: true, J2: true, drag: true, third_body: false, SRP: false}
+
+  multi_planet_j2_third_body:
+    dataset_name: multi_planet_j2_third_body
+    task_type: acceleration
+    central_bodies:
+      earth: 0.25
+      mars: 0.15
+      jupiter: 0.20
+      saturn: 0.15
+      uranus: 0.125
+      neptune: 0.125
+    orbit_families:
+      low_orbit: 0.20
+      high_orbit: 0.45
+      highly_elliptical: 0.35
+    third_bodies: {sun: true, moon: when_available}
+    forces: {two_body: true, J2: true, drag: false, third_body: true, SRP: false}
+
+  all_body_full_perturbations:
+    dataset_name: all_body_full_perturbations
+    task_type: acceleration
+    central_bodies:
+      mercury: 0.10
+      venus: 0.10
+      earth: 0.20
+      mars: 0.15
+      jupiter: 0.15
+      saturn: 0.10
+      uranus: 0.10
+      neptune: 0.10
+    orbit_families:
+      low_orbit: 0.40
+      high_orbit: 0.35
+      highly_elliptical: 0.25
+    # Each sampled manifest line receives resolved booleans. J2 is omitted for
+    # Mercury/Venus; drag and the Moon are enabled only for Earth.
+    third_bodies: {sun: true, moon: when_available}
+    forces: {two_body: true, J2: when_available, drag: when_available, third_body: true, SRP: true}
 
 export:
   random_seed: 42

@@ -150,6 +150,13 @@ radius so visibility can be recovered from physical geometry.
 
 Sample one complete recipe parameter object with a seeded NumPy generator:
 
+Available progressive recipes are `multi_planet_two_body`, `multi_planet_j2`,
+`earth_j2_drag`, `multi_planet_j2_third_body`, and
+`all_body_full_perturbations`. In the all-body recipe, `when_available` is
+resolved while sampling: J2 is omitted for Mercury and Venus, while drag and
+the Moon are enabled only for Earth. Every manifest line stores the resulting
+force choices as explicit booleans; force masks are not added to model inputs.
+
 ```python
 import numpy as np
 
