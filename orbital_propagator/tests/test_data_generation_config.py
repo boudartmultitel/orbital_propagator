@@ -221,15 +221,17 @@ class DataGenerationConfigTests(unittest.TestCase):
         self.assertEqual(sample["central_body_name"], "earth")
         self.assertEqual(sample["third_bodies_enabled"], ["sun", "moon"])
 
-    def test_j2_recipe_fails_clearly_when_venus_is_selected(self) -> None:
+    def test_j2_recipe_gracefully_disables_j2_when_venus_is_selected(self) -> None:
         with patch(
             "orbital_propagator.generation.sampling.sample_central_body",
             return_value="venus",
         ):
-            with self.assertRaisesRegex(ValueError, "J2 is unavailable.*Venus"):
-                sample_generation_parameters(
-                    "multi_planet_j2", np.random.default_rng(42)
-                )
+            sample = sample_generation_parameters(
+                "multi_planet_j2", np.random.default_rng(42)
+            )
+
+        self.assertEqual(sample["central_body_name"], "venus")
+        self.assertFalse(sample["forces"]["J2"])
 
 
 if __name__ == "__main__":

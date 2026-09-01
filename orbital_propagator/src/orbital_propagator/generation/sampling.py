@@ -208,10 +208,12 @@ def _resolve_availability(
     available: bool,
     label: str,
 ) -> bool:
+    if not available:
+        return False
     if isinstance(setting, bool):
         return setting
     if setting == "when_available":
-        return available
+        return True
     raise DataGenerationConfigError(
         f"{label} must be true, false, or 'when_available'."
     )
