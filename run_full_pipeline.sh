@@ -3,8 +3,11 @@ set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 DATA_DIR="${BASE_DIR}/data"
-MANIFEST_DIR="${DATA_DIR}/manifests"
-DATASET_DIR="${DATA_DIR}/datasets"
+
+# Container-internal paths (docker-compose mounts ./data to /shared/data)
+CONTAINER_DATA_DIR="/shared/data"
+MANIFEST_DIR="${CONTAINER_DATA_DIR}/manifests"
+DATASET_DIR="${CONTAINER_DATA_DIR}/datasets"
 
 SEED=42
 DURATION_S=86400
@@ -37,7 +40,7 @@ echo "========================================================"
 echo ""
 
 # Ensure directories exist
-mkdir -p "${MANIFEST_DIR}" "${DATASET_DIR}"
+mkdir -p "${BASE_DIR}/manifests" "${BASE_DIR}/datasets"
 
 run_command() {
   docker compose run --rm orbital_propagator "$@"
@@ -49,11 +52,12 @@ echo " Phase 1: Generating manifests"
 echo "========================================================"
 for recipe in "${RECIPES[@]}"; do
   fname="${recipe}_${COUNT}_${DURATION_S}s_${SAMPLE_COUNT}pts.jsonl"
-  manifest="${MANIFEST_DIR}/${fname}"
+  host_manifest="${BASE_DIR}/data/manifests/${fname}"
+  container_manifest="${MANIFEST_DIR}/${fname}"
 
   # Check if manifest already exists with correct count
-  if [[ -f "${manifest}" ]]; then
-    existing_lines=$(wc -l < "${manifest}")
+  if [[ -f "${host_manifest}" ]]; then
+    existing_lines=$(wc -l < "${host_manifest}")
     if [[ "${existing_lines}" -ge "${COUNT}" ]]; then
       echo "SKIP: ${recipe} (manifest exists with ${existing_lines} lines)"
       continue
@@ -63,7 +67,7 @@ for recipe in "${RECIPES[@]}"; do
 
   echo "GENERATING: ${recipe} -> ${fname}"
   run_command manifest append \
-    --manifest "${manifest}" \
+    --manifest "${container_manifest}" \
     --recipe "${recipe}" \
     --count "${COUNT}" \
     --seed "${SEED}" \
@@ -79,15 +83,16 @@ echo " Phase 2: Validating manifests"
 echo "========================================================"
 for recipe in "${RECIPES[@]}"; do
   fname="${recipe}_${COUNT}_${DURATION_S}s_${SAMPLE_COUNT}pts.jsonl"
-  manifest="${MANIFEST_DIR}/${fname}"
+  host_manifest="${BASE_DIR}/data/manifests/${fname}"
+  container_manifest="${MANIFEST_DIR}/${fname}"
 
-  if [[ ! -f "${manifest}" ]]; then
+  if [[ ! -f "${host_manifest}" ]]; then
     echo "SKIP: ${recipe} (manifest not found)"
     continue
   fi
 
   echo "VALIDATING: ${recipe}"
-  run_command manifest validate --manifest "${manifest}"
+  run_command manifest validate --manifest "${container_manifest}"
   echo ""
 done
 
@@ -97,20 +102,21 @@ echo " Phase 3: Building trajectory datasets"
 echo "========================================================"
 for recipe in "${RECIPES[@]}"; do
   fname="${recipe}_${COUNT}_${DURATION_S}s_${SAMPLE_COUNT}pts.jsonl"
-  manifest="${MANIFEST_DIR}/${fname}"
-  output_dir="${DATASET_DIR}/${recipe}"
+  host_manifest="${BASE_DIR}/data/manifests/${fname}"
+  container_manifest="${MANIFEST_DIR}/${fname}"
+  container_output="${DATASET_DIR}/${recipe}"
 
-  if [[ ! -f "${manifest}" ]]; then
+  if [[ ! -f "${host_manifest}" ]]; then
     echo "SKIP: ${recipe} (manifest not found)"
     continue
   fi
 
-  mkdir -p "${output_dir}"
+  mkdir -p "${container_output}"
 
-  echo "BUILDING: ${recipe} -> ${output_dir}"
+  echo "BUILDING: ${recipe} -> ${container_output}"
   run_command manifest build \
-    --manifest "${manifest}" \
-    --output-dir "${output_dir}" \
+    --manifest "${container_manifest}" \
+    --output-dir "${container_output}" \
     --skip-existing
   echo ""
 done
@@ -120,7 +126,7 @@ echo " Done."
 echo "========================================================"
 echo ""
 echo "Manifests:"
-ls -lh "${MANIFEST_DIR}/" 2>/dev/null || echo "(none)"
+ls -lh "${BASE_DIR}/data/manifests/" 2>/dev/null || echo "(none)"
 echo ""
 echo "Trajectory datasets:"
-ls -lhR "${DATASET_DIR}/" 2>/dev/null || echo "(none found)"
+ls -lhR "${BASE_DIR}/data/datasets/" 2>/dev/null || echo "(none found)"
