@@ -1,0 +1,6 @@
+outs:
+- md5: b1cb5040011bb1d7ff860d59c9b3c269.dir
+  size: 1473406395
+  nfiles: 1001
+  hash: md5
+  path: multi_planet_j2_1000_1day_60s
