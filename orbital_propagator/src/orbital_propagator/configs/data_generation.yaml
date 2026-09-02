@@ -103,6 +103,10 @@ sampled_parameters:
     area_to_mass:
       symbol: A_over_m
       unit: m2/kg
+      bin_weights:
+        compact: 0.20
+        smallsat: 0.40
+        high_area_to_mass: 0.40
       bins:
         compact: [0.005, 0.03]
         smallsat: [0.03, 0.20]
@@ -137,6 +141,15 @@ sampled_parameters:
         perturbation_focus: [two_body, J2, third_body, SRP]
 
     earth_specific:
+      drag_leo:
+        central_body: earth
+        altitude_km: [350, 900]
+        eccentricity: [0.0, 0.02]
+        inclination_deg: [0, 120]
+        raan_deg: [0, 360]
+        arg_perigee_deg: [0, 360]
+        true_anomaly_deg: [0, 360]
+        perturbation_focus: [J2, drag]
       leo:
         central_body: earth
         altitude_km: [300, 2000]
@@ -243,9 +256,9 @@ dataset_recipes:
     task_type: acceleration
     central_bodies: {earth: 1.0}
     orbit_families:
-      leo: 0.55
-      sso: 0.25
-      low_orbit: 0.20
+      drag_leo: 0.70
+      sso: 0.20
+      low_orbit: 0.10
     third_bodies: {sun: false, moon: false}
     forces: {two_body: true, J2: true, drag: true, third_body: false, SRP: false}
 
@@ -270,18 +283,25 @@ dataset_recipes:
     dataset_name: all_body_full_perturbations
     task_type: acceleration
     central_bodies:
-      mercury: 0.10
-      venus: 0.10
-      earth: 0.20
-      mars: 0.15
-      jupiter: 0.15
-      saturn: 0.10
-      uranus: 0.10
-      neptune: 0.10
+      mercury: 0.05
+      venus: 0.05
+      earth: 0.50
+      mars: 0.10
+      jupiter: 0.10
+      saturn: 0.08
+      uranus: 0.06
+      neptune: 0.06
     orbit_families:
-      low_orbit: 0.40
-      high_orbit: 0.35
+      low_orbit: 0.35
+      high_orbit: 0.40
       highly_elliptical: 0.25
+    orbit_families_by_body:
+      earth:
+        drag_leo: 0.50
+        sso: 0.15
+        low_orbit: 0.10
+        high_orbit: 0.15
+        highly_elliptical: 0.10
     # Each sampled manifest line receives resolved booleans. J2 is omitted for
     # Mercury/Venus; drag and the Moon are enabled only for Earth.
     third_bodies: {sun: true, moon: when_available}

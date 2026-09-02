@@ -92,7 +92,12 @@ def _environment_series(
             dtype=float,
         )
     else:
-        moon_positions_m = np.zeros_like(sun_positions_m)
+        # Keep absent-Moon geometry finite and away from every configured orbit.
+        # Its force is still exactly neutral because moon_mu_m3_s2 is zero.
+        moon_positions_m = np.tile(
+            [100.0 * request.central_body.radius_m, 0.0, 0.0],
+            (len(times_s), 1),
+        )
 
     densities_kg_m3 = np.zeros(len(times_s), dtype=float)
     atmosphere_velocities_m_s = np.zeros((len(times_s), 3), dtype=float)

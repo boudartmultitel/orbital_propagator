@@ -21,7 +21,9 @@ from orbital_propagator.generation.configuration import (
 )
 
 
-EARTH_SPECIFIC_FAMILIES = frozenset({"leo", "sso", "geo", "molniya"})
+EARTH_SPECIFIC_FAMILIES = frozenset(
+    {"drag_leo", "leo", "sso", "geo", "molniya"}
+)
 
 
 def _weighted_choice(
@@ -67,6 +69,12 @@ def sample_orbit_family(
     recipe: Mapping[str, Any], selected_body: str, rng: np.random.Generator
 ) -> str:
     weights = recipe.get("orbit_families")
+    body_weights = recipe.get("orbit_families_by_body", {})
+    if not isinstance(body_weights, Mapping):
+        raise DataGenerationConfigError(
+            "recipe.orbit_families_by_body must be a mapping."
+        )
+    weights = body_weights.get(selected_body, weights)
     if not isinstance(weights, Mapping):
         raise DataGenerationConfigError("recipe.orbit_families must be a mapping.")
     if selected_body != "earth" and EARTH_SPECIFIC_FAMILIES.intersection(weights):
@@ -191,7 +199,19 @@ def sample_spacecraft_parameters(
     bins = priors["area_to_mass"].get("bins")
     if not isinstance(bins, Mapping):
         raise DataGenerationConfigError("area_to_mass.bins must be a mapping.")
-    bin_name = str(rng.choice(list(bins)))
+    bin_weights = priors["area_to_mass"].get("bin_weights")
+    if bin_weights is None:
+        bin_name = str(rng.choice(list(bins)))
+    elif isinstance(bin_weights, Mapping):
+        bin_name = _weighted_choice(bin_weights, rng, "area-to-mass bin")
+        if bin_name not in bins:
+            raise DataGenerationConfigError(
+                f"Unknown area-to-mass bin {bin_name!r} in bin_weights."
+            )
+    else:
+        raise DataGenerationConfigError(
+            "area_to_mass.bin_weights must be a mapping."
+        )
     area_to_mass = _uniform_range({"range": bins[bin_name]}, "range", rng)
     return {
         "C_D": drag_coefficient,

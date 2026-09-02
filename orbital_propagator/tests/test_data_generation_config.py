@@ -63,7 +63,8 @@ class DataGenerationConfigTests(unittest.TestCase):
             {"low_orbit", "high_orbit", "highly_elliptical"},
         )
         self.assertEqual(
-            set(families["earth_specific"]), {"leo", "sso", "geo", "molniya"}
+            set(families["earth_specific"]),
+            {"drag_leo", "leo", "sso", "geo", "molniya"},
         )
         self.assertTrue(
             all(
@@ -74,6 +75,27 @@ class DataGenerationConfigTests(unittest.TestCase):
         self.assertEqual(
             set(sampled["spacecraft_priors"]),
             {"drag_coefficient", "reflectivity_coefficient", "area_to_mass"},
+        )
+
+    def test_drag_recipes_favor_low_earth_orbits(self) -> None:
+        config = load_data_generation_config()
+        recipes = config["dataset_recipes"]
+
+        self.assertEqual(
+            recipes["earth_j2_drag"]["orbit_families"],
+            {"drag_leo": 0.70, "sso": 0.20, "low_orbit": 0.10},
+        )
+        self.assertEqual(
+            recipes["all_body_full_perturbations"]["orbit_families_by_body"][
+                "earth"
+            ]["drag_leo"],
+            0.50,
+        )
+        self.assertEqual(
+            config["sampled_parameters"]["spacecraft_priors"]["area_to_mass"][
+                "bin_weights"
+            ],
+            {"compact": 0.20, "smallsat": 0.40, "high_area_to_mass": 0.40},
         )
 
     def test_catalog_contains_only_allowed_planetary_central_bodies(self) -> None:

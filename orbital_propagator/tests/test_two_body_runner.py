@@ -15,6 +15,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from orbital_propagator.bodies.earth import EARTH
+from orbital_propagator.bodies.catalog import central_body_from_catalog
 from orbital_propagator.config import (
     ForceModelConfig,
     IntegratorConfig,
@@ -238,6 +239,28 @@ class TwoBodyRunnerTests(unittest.TestCase):
         self.assertNotIn("accelerations_total_m_s2", loaded)
         self.assertNotIn("accelerations_by_force_m_s2", loaded)
         self.assertEqual(len(loaded["times_s"]), 21)
+
+    def test_non_earth_artifact_has_finite_neutral_moon_geometry(self) -> None:
+        mars = central_body_from_catalog("mars")
+        request = SimulationRequest(
+            run_name="mars_neutral_moon",
+            producer="simulation",
+            central_body=mars,
+            initial_state_m_s=circular_orbit_state(mars, altitude_m=400_000.0),
+            propagation=PropagationConfig(duration_s=60.0, sample_count=3),
+            integrator=IntegratorConfig(backend="rk4"),
+            spacecraft=SpacecraftConfig(),
+            forces=ForceModelConfig(),
+        )
+        artifact = build_run_artifact(request, run_simulation(request))
+        moon_positions = np.asarray(artifact["environment_series"]["moon_position_m"])
+
+        self.assertTrue(np.isfinite(moon_positions).all())
+        np.testing.assert_allclose(
+            np.linalg.norm(moon_positions, axis=1),
+            100.0 * mars.radius_m,
+        )
+        self.assertEqual(artifact["constant_inputs"]["moon_mu_m3_s2"], 0.0)
 
     def test_force_breakdown_artifact_contains_total_and_named_accelerations(self) -> None:
         request = SimulationRequest(
