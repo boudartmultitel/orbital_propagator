@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +55,33 @@ class TrajectoryManifestTests(unittest.TestCase):
             }.issubset(records[0])
         )
         self.assertEqual(records[0]["sampling_seed"], 42)
+        self.assertEqual(
+            records[0]["propagation"]["start_epoch_utc"], "2026-01-01T00:00:00Z"
+        )
+
+    def test_time_dependent_recipe_samples_reproducible_epochs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            manifest_path = Path(temporary_directory) / "trajectories.jsonl"
+            records = append_sampled_trajectories(
+                manifest_path,
+                "multi_planet_j2_third_body",
+                2,
+                np.random.default_rng(42),
+            )
+
+        epochs = [
+            datetime.fromisoformat(record["propagation"]["start_epoch_utc"])
+            for record in records
+        ]
+        self.assertNotEqual(epochs[0], epochs[1])
+        self.assertTrue(
+            all(
+                datetime(2025, 1, 1, tzinfo=timezone.utc)
+                <= epoch
+                <= datetime(2035, 1, 1, tzinfo=timezone.utc)
+                for epoch in epochs
+            )
+        )
 
     def test_manifest_record_builds_existing_simulation_request(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -90,7 +118,14 @@ class TrajectoryManifestTests(unittest.TestCase):
                 integrator_backend="rk4",
             )
 
-            written = build_manifest_dataset(manifest_path, output_directory)
+            progress = []
+            written = build_manifest_dataset(
+                manifest_path,
+                output_directory,
+                progress_callback=lambda completed, total: progress.append(
+                    (completed, total)
+                ),
+            )
             metadata = json.loads((output_directory / "metadata.json").read_text())
             trajectory = json.loads(written[0].read_text())
             resumed = build_manifest_dataset(
@@ -98,6 +133,7 @@ class TrajectoryManifestTests(unittest.TestCase):
             )
 
         self.assertEqual(len(written), 1)
+        self.assertEqual(progress, [(1, 1)])
         self.assertEqual(resumed, [])
         self.assertEqual(metadata["trajectory_count"], 1)
         self.assertTrue(metadata["force_breakdown"])
