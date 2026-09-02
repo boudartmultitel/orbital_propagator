@@ -41,7 +41,7 @@ class DataGenerationConfigTests(unittest.TestCase):
             {
                 "multi_planet_two_body",
                 "multi_planet_j2",
-                "earth_j2_drag",
+                "two_body_drag",
                 "multi_planet_j2_third_body",
                 "all_body_full_perturbations",
             },
@@ -82,7 +82,7 @@ class DataGenerationConfigTests(unittest.TestCase):
         recipes = config["dataset_recipes"]
 
         self.assertEqual(
-            recipes["earth_j2_drag"]["orbit_families"],
+            recipes["two_body_drag"]["orbit_families"],
             {"drag_leo": 0.70, "sso": 0.20, "low_orbit": 0.10},
         )
         self.assertEqual(
@@ -171,7 +171,7 @@ class DataGenerationConfigTests(unittest.TestCase):
 
     def test_progressive_recipes_resolve_body_dependent_forces(self) -> None:
         drag_sample = sample_generation_parameters(
-            "earth_j2_drag", np.random.default_rng(8)
+            "two_body_drag", np.random.default_rng(8)
         )
 
         self.assertEqual(drag_sample["central_body_name"], "earth")

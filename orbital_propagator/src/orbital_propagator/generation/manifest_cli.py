@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Sequence
 
@@ -32,7 +33,14 @@ def _parser() -> argparse.ArgumentParser:
     append.add_argument("--seed", type=int, default=42)
     append.add_argument("--duration-s", type=float, default=5_400.0)
     append.add_argument("--sample-count", type=int, default=181)
-    append.add_argument("--start-epoch-utc", default="2026-01-01T00:00:00Z")
+    append.add_argument(
+        "--start-epoch-utc",
+        default=None,
+        help=(
+            "Fixed epoch for every trajectory. By default, time-dependent recipes "
+            "sample the configured epoch range."
+        ),
+    )
     append.add_argument("--mass-kg", type=float, default=1_000.0)
     append.add_argument(
         "--integrator-backend", choices=("auto", "scipy", "rk4"), default="auto"
@@ -94,10 +102,23 @@ def main(argv: Sequence[str] | None = None) -> None:
         records = load_manifest(args.manifest)
         print(f"Validated {len(records)} trajectories in {args.manifest}")
     else:
+        def show_progress(completed: int, total: int) -> None:
+            width = 30
+            filled = width * completed // total
+            bar = "#" * filled + "-" * (width - filled)
+            end = "\n" if completed == total else "\r"
+            print(
+                f"[{bar}] {completed}/{total} trajectories",
+                end=end,
+                file=sys.stderr,
+                flush=True,
+            )
+
         written = build_manifest_dataset(
             args.manifest,
             args.output_dir,
             force_breakdown=not args.state_only,
             skip_existing=args.skip_existing,
+            progress_callback=show_progress,
         )
         print(f"Wrote {len(written)} trajectory artifacts to {args.output_dir}")

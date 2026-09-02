@@ -89,6 +89,13 @@ fixed_parameters:
 # Categories 2 and 3: independently sampled spacecraft properties and
 # orbit-family-dependent parameters.
 sampled_parameters:
+  environment_priors:
+    start_epoch_utc:
+      range: ["2025-01-01T00:00:00Z", "2035-01-01T00:00:00Z"]
+      distribution: uniform
+      sample_for_forces: [third_body, SRP]
+      default: "2026-01-01T00:00:00Z"
+
   spacecraft_priors:
     drag_coefficient:
       symbol: C_D
@@ -251,8 +258,8 @@ dataset_recipes:
     third_bodies: {sun: false, moon: false}
     forces: {two_body: true, J2: true, drag: false, third_body: false, SRP: false}
 
-  earth_j2_drag:
-    dataset_name: earth_j2_drag
+  two_body_drag:
+    dataset_name: two_body_drag
     task_type: acceleration
     central_bodies: {earth: 1.0}
     orbit_families:

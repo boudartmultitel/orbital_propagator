@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from hashlib import sha256
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from math import degrees, isclose
 from pathlib import Path
@@ -25,12 +25,39 @@ from orbital_propagator.generation.sampling import (
     sample_generation_parameters,
     validate_sample,
 )
+from orbital_propagator.generation.configuration import load_data_generation_config
 from orbital_propagator.io.artifacts import build_run_artifact, save_run_artifact
 from orbital_propagator.propagation.runner import run_simulation
 
 
 MANIFEST_SCHEMA_VERSION = "0.1"
 TRAJECTORY_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def _parse_utc(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+
+
+def _start_epoch_utc(
+    sampled: Mapping[str, Any],
+    config: Mapping[str, Any],
+    rng: np.random.Generator,
+    override: str | None,
+) -> str:
+    if override is not None:
+        return override
+    prior = config["sampled_parameters"]["environment_priors"]["start_epoch_utc"]
+    forces = sampled["forces"]
+    if not any(bool(forces.get(name, False)) for name in prior["sample_for_forces"]):
+        return str(prior["default"])
+    start, end = (_parse_utc(str(value)) for value in prior["range"])
+    if start >= end:
+        raise ValueError("start_epoch_utc range must be strictly increasing.")
+    sampled_timestamp = rng.uniform(start.timestamp(), end.timestamp())
+    return datetime.fromtimestamp(sampled_timestamp, timezone.utc).isoformat().replace(
+        "+00:00", "Z"
+    )
 
 
 def append_sampled_trajectories(
@@ -41,7 +68,7 @@ def append_sampled_trajectories(
     *,
     duration_s: float = 5_400.0,
     sample_count: int = 181,
-    start_epoch_utc: str = "2026-01-01T00:00:00Z",
+    start_epoch_utc: str | None = None,
     mass_kg: float = 1_000.0,
     integrator_backend: str = "auto",
     integrator_method: str = "DOP853",
@@ -58,6 +85,7 @@ def append_sampled_trajectories(
         raise ValueError("Duration and mass must be positive; sample_count must be >= 2.")
 
     existing_count = len(load_manifest(manifest_path)) if manifest_path.exists() else 0
+    config = load_data_generation_config(config_path)
     records: list[dict[str, Any]] = []
     for offset in range(count):
         sampled = sample_generation_parameters(recipe_name, rng, config_path)
@@ -72,7 +100,9 @@ def append_sampled_trajectories(
                 "propagation": {
                     "duration_s": duration_s,
                     "sample_count": sample_count,
-                    "start_epoch_utc": start_epoch_utc,
+                    "start_epoch_utc": _start_epoch_utc(
+                        sampled, config, rng, start_epoch_utc
+                    ),
                 },
                 "integrator": {
                     "backend": integrator_backend,
@@ -261,6 +291,7 @@ def build_manifest_dataset(
     *,
     force_breakdown: bool = True,
     skip_existing: bool = False,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> list[Path]:
     """Execute all manifest trajectories into existing JSON run artifacts."""
     records = load_manifest(manifest_path)
@@ -276,7 +307,9 @@ def build_manifest_dataset(
 
     output_directory.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
-    for record, output_path in zip(records, targets, strict=True):
+    for index, (record, output_path) in enumerate(
+        zip(records, targets, strict=True), start=1
+    ):
         if output_path.exists():
             with output_path.open("r", encoding="utf-8") as handle:
                 existing_artifact = json.load(handle)
@@ -284,15 +317,17 @@ def build_manifest_dataset(
                 raise ValueError(
                     f"Existing artifact {output_path} does not match its manifest line."
                 )
-            continue
-        request = simulation_request_from_record(record)
-        artifact = build_run_artifact(
-            request, run_simulation(request), force_breakdown=force_breakdown
-        )
-        artifact["run_id"] = record["trajectory_id"]
-        artifact["manifest_parameters"] = record
-        save_run_artifact(artifact, output_path)
-        written.append(output_path)
+        else:
+            request = simulation_request_from_record(record)
+            artifact = build_run_artifact(
+                request, run_simulation(request), force_breakdown=force_breakdown
+            )
+            artifact["run_id"] = record["trajectory_id"]
+            artifact["manifest_parameters"] = record
+            save_run_artifact(artifact, output_path)
+            written.append(output_path)
+        if progress_callback is not None:
+            progress_callback(index, len(records))
 
     metadata = {
         "schema_version": MANIFEST_SCHEMA_VERSION,

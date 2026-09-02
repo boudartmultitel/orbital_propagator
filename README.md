@@ -140,8 +140,8 @@ inputs = materialize_input_vectors(artifact)  # shape: [sample_count, 33]
 
 All spacecraft, atmosphere, Sun, and Moon vectors use the selected planet's
 central-body equatorial inertial frame. Earth atmosphere and Moon inputs are
-evaluated at every point; unsupported atmosphere and Moon inputs for other
-central bodies are represented consistently by zeros.
+evaluated at every point; unsupported atmosphere inputs are zero, while absent
+Moon geometry uses a finite placeholder with zero Moon gravitational parameter.
 
 SRP uses inverse-square Sun distance and a cylindrical central-body eclipse.
 The resulting binary `srp_visibility` is exported for diagnostics but is not a
@@ -151,7 +151,7 @@ radius so visibility can be recovered from physical geometry.
 Sample one complete recipe parameter object with a seeded NumPy generator:
 
 Available progressive recipes are `multi_planet_two_body`, `multi_planet_j2`,
-`earth_j2_drag`, `multi_planet_j2_third_body`, and
+`two_body_drag`, `multi_planet_j2_third_body`, and
 `all_body_full_perturbations`. In the all-body recipe, `when_available` is
 resolved while sampling: J2 is omitted for Mercury and Venus, while drag and
 the Moon are enabled only for Earth. Every manifest line stores the resulting
@@ -177,7 +177,9 @@ spacecraft inputs (`C_D`, `C_R`, and `A_over_m`), and the derived `gamma_D` and
 
 The manifest is a JSON Lines file: every non-empty line is one fully specified
 trajectory. Parameters are sampled and validated before any new lines are
-appended.
+appended. Recipes using third-body gravity or SRP sample a reproducible start
+epoch from the configured 2025--2035 interval. Pass `--start-epoch-utc` to use
+one fixed epoch instead. The build command displays trajectory progress.
 
 Create or extend a manifest reproducibly:
 
@@ -191,6 +193,22 @@ docker compose run --rm orbital_propagator manifest append \
   --seed 42 \
   --duration-s 5400 \
   --sample-count 181
+```
+
+For 1,000 one-day `two_body_drag` trajectories sampled every 60 seconds:
+
+```bash
+docker compose run --rm orbital_propagator manifest append \
+  --manifest /shared/data/manifests/two_body_drag_1000_1day_60s.jsonl \
+  --recipe two_body_drag \
+  --count 1000 \
+  --seed 42 \
+  --duration-s 86400 \
+  --sample-count 1441
+
+docker compose run --rm orbital_propagator manifest build \
+  --manifest /shared/data/manifests/two_body_drag_1000_1day_60s.jsonl \
+  --output-dir /shared/data/datasets/two_body_drag_1000_1day_60s
 ```
 
 Validate an edited or generated manifest without propagating it:
