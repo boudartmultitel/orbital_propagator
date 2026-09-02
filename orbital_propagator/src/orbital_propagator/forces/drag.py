@@ -199,6 +199,41 @@ def atmospheric_drag_acceleration(
     atmosphere_model: str = "piecewise_exponential",
     corotating_atmosphere: bool = True,
 ) -> np.ndarray:
+    density_kg_m3, _atmosphere_velocity_m_s, relative_velocity_m_s = (
+        atmospheric_environment(
+            position_m=position_m,
+            velocity_m_s=velocity_m_s,
+            start_epoch_utc=start_epoch_utc,
+            elapsed_time_s=elapsed_time_s,
+            body_radius_m=body_radius_m,
+            body_rotation_rate_rad_s=body_rotation_rate_rad_s,
+            density_sea_level_kg_m3=density_sea_level_kg_m3,
+            scale_height_m=scale_height_m,
+            atmosphere_model=atmosphere_model,
+            corotating_atmosphere=corotating_atmosphere,
+        )
+    )
+    speed_m_s = np.linalg.norm(relative_velocity_m_s)
+    if speed_m_s == 0.0:
+        return np.zeros(3, dtype=float)
+
+    ballistic_scale = -0.5 * density_kg_m3 * drag_coefficient * cross_section_area_m2 / mass_kg
+    return ballistic_scale * speed_m_s * relative_velocity_m_s
+
+
+def atmospheric_environment(
+    position_m: np.ndarray,
+    velocity_m_s: np.ndarray,
+    start_epoch_utc: str,
+    elapsed_time_s: float,
+    body_radius_m: float,
+    body_rotation_rate_rad_s: float,
+    density_sea_level_kg_m3: float,
+    scale_height_m: float,
+    atmosphere_model: str = "piecewise_exponential",
+    corotating_atmosphere: bool = True,
+) -> tuple[float, np.ndarray, np.ndarray]:
+    """Return density, local atmosphere velocity, and their velocity difference."""
     altitude_m = np.linalg.norm(position_m) - body_radius_m
     if atmosphere_model == "piecewise_exponential":
         density_kg_m3 = piecewise_exponential_atmosphere_density(
@@ -223,9 +258,4 @@ def atmospheric_drag_acceleration(
     else:
         atmosphere_velocity_m_s = np.zeros(3, dtype=float)
     relative_velocity_m_s = velocity_m_s - atmosphere_velocity_m_s
-    speed_m_s = np.linalg.norm(relative_velocity_m_s)
-    if speed_m_s == 0.0:
-        return np.zeros(3, dtype=float)
-
-    ballistic_scale = -0.5 * density_kg_m3 * drag_coefficient * cross_section_area_m2 / mass_kg
-    return ballistic_scale * speed_m_s * relative_velocity_m_s
+    return density_kg_m3, atmosphere_velocity_m_s, relative_velocity_m_s

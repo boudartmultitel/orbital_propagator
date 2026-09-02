@@ -21,7 +21,10 @@ from orbital_propagator.ephemerides.provider import (
 from orbital_propagator.forces.drag import atmospheric_drag_acceleration
 from orbital_propagator.forces.gravity import central_gravity_acceleration
 from orbital_propagator.forces.j2 import j2_acceleration
-from orbital_propagator.forces.srp import solar_radiation_pressure_acceleration
+from orbital_propagator.forces.srp import (
+    cylindrical_eclipse_visibility,
+    solar_radiation_pressure_acceleration,
+)
 from orbital_propagator.forces.third_body import third_body_point_mass_acceleration
 
 
@@ -88,6 +91,9 @@ def evaluate_accelerations(
             third_body_mu_m3_s2=MOON_MU_M3_S2,
         )
     if forces.solar_radiation_pressure and sun_position is not None:
+        visibility = cylindrical_eclipse_visibility(
+            position_m, sun_position, central_body.radius_m
+        )
         accelerations["solar_radiation_pressure"] = (
             solar_radiation_pressure_acceleration(
                 spacecraft_position_m=position_m,
@@ -97,6 +103,7 @@ def evaluate_accelerations(
                 mass_kg=spacecraft.mass_kg,
                 solar_pressure_1au_n_m2=SOLAR_RADIATION_PRESSURE_1AU_N_M2,
                 astronomical_unit_m=AU_M,
+                visibility=visibility,
             )
         )
 

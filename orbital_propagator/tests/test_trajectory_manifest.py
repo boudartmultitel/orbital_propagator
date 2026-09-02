@@ -19,6 +19,7 @@ from orbital_propagator.generation.manifest import (
     load_manifest,
     simulation_request_from_record,
 )
+from orbital_propagator.generation.features import materialize_input_vectors
 
 
 class TrajectoryManifestTests(unittest.TestCase):
@@ -91,6 +92,7 @@ class TrajectoryManifestTests(unittest.TestCase):
 
             written = build_manifest_dataset(manifest_path, output_directory)
             metadata = json.loads((output_directory / "metadata.json").read_text())
+            trajectory = json.loads(written[0].read_text())
             resumed = build_manifest_dataset(
                 manifest_path, output_directory, skip_existing=True
             )
@@ -99,6 +101,12 @@ class TrajectoryManifestTests(unittest.TestCase):
         self.assertEqual(resumed, [])
         self.assertEqual(metadata["trajectory_count"], 1)
         self.assertTrue(metadata["force_breakdown"])
+        self.assertEqual(trajectory["schema_version"], "0.7.0")
+        self.assertEqual(trajectory["run_id"], trajectory["run_name"])
+        self.assertEqual(len(trajectory["feature_names"]), 33)
+        self.assertNotIn("inputs", trajectory)
+        self.assertEqual(len(trajectory["constant_inputs"]), 11)
+        self.assertEqual(materialize_input_vectors(trajectory).shape, (3, 33))
 
 
 if __name__ == "__main__":

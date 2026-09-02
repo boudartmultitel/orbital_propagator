@@ -15,6 +15,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from orbital_propagator.bodies.earth import EARTH
+from orbital_propagator.bodies.catalog import central_body_from_catalog
 from orbital_propagator.config import (
     ForceModelConfig,
     IntegratorConfig,
@@ -26,6 +27,10 @@ from orbital_propagator.config import (
 )
 from orbital_propagator.forces.drag import PYMSIS_AVAILABLE
 from orbital_propagator.propagation.dynamics import evaluate_accelerations
+from orbital_propagator.generation.features import (
+    build_input_vectors,
+    materialize_input_vectors,
+)
 from orbital_propagator.io.artifacts import build_run_artifact, save_run_artifact
 from orbital_propagator.propagation.orbital_elements import compute_derived_series
 from orbital_propagator.propagation.integrators import integrate_states
@@ -206,9 +211,56 @@ class TwoBodyRunnerTests(unittest.TestCase):
         self.assertEqual(loaded["output_type"], "state_vector")
         self.assertIn("states_m_s", loaded)
         self.assertIn("derived_series", loaded)
+        self.assertEqual(loaded["schema_version"], "0.7.0")
+        self.assertEqual(loaded["input_schema_version"], "0.1.0")
+        self.assertEqual(len(loaded["feature_names"]), 33)
+        self.assertNotIn("inputs", loaded)
+        self.assertEqual(len(loaded["constant_inputs"]), 11)
+        reconstructed_inputs = materialize_input_vectors(loaded)
+        self.assertEqual(reconstructed_inputs.shape, (21, 33))
+        np.testing.assert_allclose(
+            reconstructed_inputs,
+            build_input_vectors(request, result),
+        )
+        self.assertEqual(
+            np.asarray(loaded["environment_series"]["sun_position_m"]).shape,
+            (21, 3),
+        )
+        self.assertEqual(
+            np.asarray(
+                loaded["environment_series"]["atmosphere_velocity_m_s"]
+            ).shape,
+            (21, 3),
+        )
+        self.assertNotIn("srp_visibility", loaded["feature_names"])
+        self.assertEqual(
+            loaded["feature_units"]["P_srp_1AU_N_m2"], "N/m2"
+        )
         self.assertNotIn("accelerations_total_m_s2", loaded)
         self.assertNotIn("accelerations_by_force_m_s2", loaded)
         self.assertEqual(len(loaded["times_s"]), 21)
+
+    def test_non_earth_artifact_has_finite_neutral_moon_geometry(self) -> None:
+        mars = central_body_from_catalog("mars")
+        request = SimulationRequest(
+            run_name="mars_neutral_moon",
+            producer="simulation",
+            central_body=mars,
+            initial_state_m_s=circular_orbit_state(mars, altitude_m=400_000.0),
+            propagation=PropagationConfig(duration_s=60.0, sample_count=3),
+            integrator=IntegratorConfig(backend="rk4"),
+            spacecraft=SpacecraftConfig(),
+            forces=ForceModelConfig(),
+        )
+        artifact = build_run_artifact(request, run_simulation(request))
+        moon_positions = np.asarray(artifact["environment_series"]["moon_position_m"])
+
+        self.assertTrue(np.isfinite(moon_positions).all())
+        np.testing.assert_allclose(
+            np.linalg.norm(moon_positions, axis=1),
+            100.0 * mars.radius_m,
+        )
+        self.assertEqual(artifact["constant_inputs"]["moon_mu_m3_s2"], 0.0)
 
     def test_force_breakdown_artifact_contains_total_and_named_accelerations(self) -> None:
         request = SimulationRequest(

@@ -120,7 +120,42 @@ radiation pressure uses the catalog heliocentric distance with inverse-square
 scaling. Orbit-family conversion and prior sampling are handled by the Phase 7
 sampler.
 
+Trajectory artifact schema `0.7.0` stores the 11 trajectory-wide input constants
+once in `constant_inputs`. Dynamic inputs reference `states_m_s`,
+`derived_series`, and the full-resolution `environment_series`, avoiding a
+duplicated materialized matrix in every file. The unchanged canonical 33-column
+training matrix is reconstructed on demand with
+`materialize_input_vectors(artifact)`; ordered `feature_names` and
+`feature_units` remain in the artifact.
+
+```python
+import json
+from pathlib import Path
+
+from orbital_propagator.generation.features import materialize_input_vectors
+
+artifact = json.loads(Path("trajectory.json").read_text())
+inputs = materialize_input_vectors(artifact)  # shape: [sample_count, 33]
+```
+
+All spacecraft, atmosphere, Sun, and Moon vectors use the selected planet's
+central-body equatorial inertial frame. Earth atmosphere and Moon inputs are
+evaluated at every point; unsupported atmosphere and Moon inputs for other
+central bodies are represented consistently by zeros.
+
+SRP uses inverse-square Sun distance and a cylindrical central-body eclipse.
+The resulting binary `srp_visibility` is exported for diagnostics but is not a
+model input: the learning inputs contain spacecraft/Sun geometry and body
+radius so visibility can be recovered from physical geometry.
+
 Sample one complete recipe parameter object with a seeded NumPy generator:
+
+Available progressive recipes are `multi_planet_two_body`, `multi_planet_j2`,
+`earth_j2_drag`, `multi_planet_j2_third_body`, and
+`all_body_full_perturbations`. In the all-body recipe, `when_available` is
+resolved while sampling: J2 is omitted for Mercury and Venus, while drag and
+the Moon are enabled only for Earth. Every manifest line stores the resulting
+force choices as explicit booleans; force masks are not added to model inputs.
 
 ```python
 import numpy as np

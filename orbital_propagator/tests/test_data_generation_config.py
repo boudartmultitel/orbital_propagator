@@ -41,7 +41,9 @@ class DataGenerationConfigTests(unittest.TestCase):
             {
                 "multi_planet_two_body",
                 "multi_planet_j2",
-                "earth_full_perturbations",
+                "earth_j2_drag",
+                "multi_planet_j2_third_body",
+                "all_body_full_perturbations",
             },
         )
 
@@ -61,7 +63,8 @@ class DataGenerationConfigTests(unittest.TestCase):
             {"low_orbit", "high_orbit", "highly_elliptical"},
         )
         self.assertEqual(
-            set(families["earth_specific"]), {"leo", "sso", "geo", "molniya"}
+            set(families["earth_specific"]),
+            {"drag_leo", "leo", "sso", "geo", "molniya"},
         )
         self.assertTrue(
             all(
@@ -72,6 +75,27 @@ class DataGenerationConfigTests(unittest.TestCase):
         self.assertEqual(
             set(sampled["spacecraft_priors"]),
             {"drag_coefficient", "reflectivity_coefficient", "area_to_mass"},
+        )
+
+    def test_drag_recipes_favor_low_earth_orbits(self) -> None:
+        config = load_data_generation_config()
+        recipes = config["dataset_recipes"]
+
+        self.assertEqual(
+            recipes["earth_j2_drag"]["orbit_families"],
+            {"drag_leo": 0.70, "sso": 0.20, "low_orbit": 0.10},
+        )
+        self.assertEqual(
+            recipes["all_body_full_perturbations"]["orbit_families_by_body"][
+                "earth"
+            ]["drag_leo"],
+            0.50,
+        )
+        self.assertEqual(
+            config["sampled_parameters"]["spacecraft_priors"]["area_to_mass"][
+                "bin_weights"
+            ],
+            {"compact": 0.20, "smallsat": 0.40, "high_area_to_mass": 0.40},
         )
 
     def test_catalog_contains_only_allowed_planetary_central_bodies(self) -> None:
@@ -85,10 +109,11 @@ class DataGenerationConfigTests(unittest.TestCase):
         moon = config["fixed_parameters"]["third_bodies"]["moon"]
 
         self.assertEqual(moon["enabled_for_central_bodies"], ["earth"])
-        self.assertTrue(
-            config["dataset_recipes"]["earth_full_perturbations"]["third_bodies"][
+        self.assertEqual(
+            config["dataset_recipes"]["all_body_full_perturbations"]["third_bodies"][
                 "moon"
-            ]
+            ],
+            "when_available",
         )
 
     def test_earth_catalog_entry_builds_existing_central_body_config(self) -> None:
@@ -144,23 +169,91 @@ class DataGenerationConfigTests(unittest.TestCase):
         self.assertAlmostEqual(first["gamma_R"], first["C_R"] * first["A_over_m"])
         self.assertGreater(first["a_km"] * (1.0 - first["e"]), first["radius_km"])
 
-    def test_earth_full_recipe_enables_sun_and_moon_for_earth(self) -> None:
-        sample = sample_generation_parameters(
-            "earth_full_perturbations", np.random.default_rng(8)
+    def test_progressive_recipes_resolve_body_dependent_forces(self) -> None:
+        drag_sample = sample_generation_parameters(
+            "earth_j2_drag", np.random.default_rng(8)
         )
+
+        self.assertEqual(drag_sample["central_body_name"], "earth")
+        self.assertTrue(drag_sample["forces"]["drag"])
+        self.assertEqual(drag_sample["third_bodies_enabled"], [])
+
+        with patch(
+            "orbital_propagator.generation.sampling.sample_central_body",
+            return_value="earth",
+        ):
+            third_body_sample = sample_generation_parameters(
+                "multi_planet_j2_third_body", np.random.default_rng(8)
+            )
+
+        self.assertEqual(third_body_sample["third_bodies_enabled"], ["sun", "moon"])
+        self.assertFalse(third_body_sample["forces"]["drag"])
+
+    def test_all_body_full_recipe_enables_only_available_forces(self) -> None:
+        with patch(
+            "orbital_propagator.generation.sampling.sample_central_body",
+            return_value="earth",
+        ):
+            earth_sample = sample_generation_parameters(
+                "all_body_full_perturbations", np.random.default_rng(8)
+            )
+        with patch(
+            "orbital_propagator.generation.sampling.sample_central_body",
+            return_value="mercury",
+        ):
+            mercury_sample = sample_generation_parameters(
+                "all_body_full_perturbations", np.random.default_rng(8)
+            )
+
+        self.assertTrue(all(earth_sample["forces"].values()))
+        self.assertEqual(earth_sample["third_bodies_enabled"], ["sun", "moon"])
+        self.assertFalse(mercury_sample["forces"]["J2"])
+        self.assertFalse(mercury_sample["forces"]["drag"])
+        self.assertTrue(mercury_sample["forces"]["third_body"])
+        self.assertTrue(mercury_sample["forces"]["SRP"])
+        self.assertEqual(mercury_sample["third_bodies_enabled"], ["sun"])
+
+    def test_all_body_full_recipe_samples_every_supported_planet(self) -> None:
+        for body_name in ALLOWED_CENTRAL_BODY_NAMES:
+            with patch(
+                "orbital_propagator.generation.sampling.sample_central_body",
+                return_value=body_name,
+            ):
+                sample = sample_generation_parameters(
+                    "all_body_full_perturbations", np.random.default_rng(8)
+                )
+
+            self.assertEqual(sample["central_body_name"], body_name)
+
+    def test_earth_full_recipe_name_has_been_replaced(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Unknown dataset recipe"):
+            sample_generation_parameters(
+                "earth_full_perturbations", np.random.default_rng(8)
+            )
+
+    def test_all_body_full_recipe_enables_sun_and_moon_for_earth(self) -> None:
+        with patch(
+            "orbital_propagator.generation.sampling.sample_central_body",
+            return_value="earth",
+        ):
+            sample = sample_generation_parameters(
+                "all_body_full_perturbations", np.random.default_rng(8)
+            )
 
         self.assertEqual(sample["central_body_name"], "earth")
         self.assertEqual(sample["third_bodies_enabled"], ["sun", "moon"])
 
-    def test_j2_recipe_fails_clearly_when_venus_is_selected(self) -> None:
+    def test_j2_recipe_gracefully_disables_j2_when_venus_is_selected(self) -> None:
         with patch(
             "orbital_propagator.generation.sampling.sample_central_body",
             return_value="venus",
         ):
-            with self.assertRaisesRegex(ValueError, "J2 is unavailable.*Venus"):
-                sample_generation_parameters(
-                    "multi_planet_j2", np.random.default_rng(42)
-                )
+            sample = sample_generation_parameters(
+                "multi_planet_j2", np.random.default_rng(42)
+            )
+
+        self.assertEqual(sample["central_body_name"], "venus")
+        self.assertFalse(sample["forces"]["J2"])
 
 
 if __name__ == "__main__":

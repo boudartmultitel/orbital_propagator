@@ -21,7 +21,9 @@ from orbital_propagator.generation.configuration import (
 )
 
 
-EARTH_SPECIFIC_FAMILIES = frozenset({"leo", "sso", "geo", "molniya"})
+EARTH_SPECIFIC_FAMILIES = frozenset(
+    {"drag_leo", "leo", "sso", "geo", "molniya"}
+)
 
 
 def _weighted_choice(
@@ -67,6 +69,12 @@ def sample_orbit_family(
     recipe: Mapping[str, Any], selected_body: str, rng: np.random.Generator
 ) -> str:
     weights = recipe.get("orbit_families")
+    body_weights = recipe.get("orbit_families_by_body", {})
+    if not isinstance(body_weights, Mapping):
+        raise DataGenerationConfigError(
+            "recipe.orbit_families_by_body must be a mapping."
+        )
+    weights = body_weights.get(selected_body, weights)
     if not isinstance(weights, Mapping):
         raise DataGenerationConfigError("recipe.orbit_families must be a mapping.")
     if selected_body != "earth" and EARTH_SPECIFIC_FAMILIES.intersection(weights):
@@ -191,7 +199,19 @@ def sample_spacecraft_parameters(
     bins = priors["area_to_mass"].get("bins")
     if not isinstance(bins, Mapping):
         raise DataGenerationConfigError("area_to_mass.bins must be a mapping.")
-    bin_name = str(rng.choice(list(bins)))
+    bin_weights = priors["area_to_mass"].get("bin_weights")
+    if bin_weights is None:
+        bin_name = str(rng.choice(list(bins)))
+    elif isinstance(bin_weights, Mapping):
+        bin_name = _weighted_choice(bin_weights, rng, "area-to-mass bin")
+        if bin_name not in bins:
+            raise DataGenerationConfigError(
+                f"Unknown area-to-mass bin {bin_name!r} in bin_weights."
+            )
+    else:
+        raise DataGenerationConfigError(
+            "area_to_mass.bin_weights must be a mapping."
+        )
     area_to_mass = _uniform_range({"range": bins[bin_name]}, "range", rng)
     return {
         "C_D": drag_coefficient,
@@ -203,22 +223,76 @@ def sample_spacecraft_parameters(
     }
 
 
-def _force_config(recipe: Mapping[str, Any]) -> ForceModelConfig:
+def _resolve_availability(
+    setting: Any,
+    available: bool,
+    label: str,
+) -> bool:
+    if not available:
+        return False
+    if isinstance(setting, bool):
+        return setting
+    if setting == "when_available":
+        return True
+    raise DataGenerationConfigError(
+        f"{label} must be true, false, or 'when_available'."
+    )
+
+
+def _force_config(
+    recipe: Mapping[str, Any],
+    planet: CentralBodyConfig,
+) -> ForceModelConfig:
     forces = recipe.get("forces")
     third_bodies = recipe.get("third_bodies")
     if not isinstance(forces, Mapping) or not isinstance(third_bodies, Mapping):
         raise DataGenerationConfigError(
             "Recipe forces and third_bodies must both be mappings."
         )
-    enable_third_body = bool(forces.get("third_body", False))
-    return ForceModelConfig(
-        central_gravity=bool(forces.get("two_body", False)),
-        j2=bool(forces.get("J2", False)),
-        drag=bool(forces.get("drag", False)),
-        solar_radiation_pressure=bool(forces.get("SRP", False)),
-        third_body_sun=enable_third_body and bool(third_bodies.get("sun", False)),
-        third_body_moon=enable_third_body and bool(third_bodies.get("moon", False)),
+    enable_third_body = _resolve_availability(
+        forces.get("third_body", False), True, "forces.third_body"
     )
+    body_name = planet.name.lower()
+    return ForceModelConfig(
+        central_gravity=_resolve_availability(
+            forces.get("two_body", False), True, "forces.two_body"
+        ),
+        j2=_resolve_availability(
+            forces.get("J2", False), planet.j2 is not None, "forces.J2"
+        ),
+        drag=_resolve_availability(
+            forces.get("drag", False),
+            planet.atmosphere_model != "none",
+            "forces.drag",
+        ),
+        solar_radiation_pressure=_resolve_availability(
+            forces.get("SRP", False),
+            planet.heliocentric_distance_au is not None,
+            "forces.SRP",
+        ),
+        third_body_sun=enable_third_body
+        and _resolve_availability(
+            third_bodies.get("sun", False),
+            planet.heliocentric_distance_au is not None,
+            "third_bodies.sun",
+        ),
+        third_body_moon=enable_third_body
+        and _resolve_availability(
+            third_bodies.get("moon", False),
+            body_name == "earth",
+            "third_bodies.moon",
+        ),
+    )
+
+
+def _resolved_force_flags(forces: ForceModelConfig) -> dict[str, bool]:
+    return {
+        "two_body": forces.central_gravity,
+        "J2": forces.j2,
+        "drag": forces.drag,
+        "third_body": forces.third_body_sun or forces.third_body_moon,
+        "SRP": forces.solar_radiation_pressure,
+    }
 
 
 def validate_sample(sample: Mapping[str, Any]) -> None:
@@ -273,7 +347,7 @@ def sample_generation_parameters(
     recipe = load_dataset_recipe(recipe_name, path)
     selected_body = sample_central_body(recipe, rng)
     planet = central_body_from_catalog(selected_body, path=path)
-    forces = _force_config(recipe)
+    forces = _force_config(recipe, planet)
     validate_force_model(planet, forces)
 
     family_name = sample_orbit_family(recipe, selected_body, rng)
@@ -310,7 +384,7 @@ def sample_generation_parameters(
         "heliocentric_distance_au": planet.heliocentric_distance_au,
         "third_bodies_enabled": third_bodies,
         "orbit_family": family_name,
-        "forces": dict(recipe["forces"]),
+        "forces": _resolved_force_flags(forces),
     }
     sample.update(sample_orbital_elements(family, planet, rng))
     sample.update(spacecraft)
